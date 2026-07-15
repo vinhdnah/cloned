@@ -1880,12 +1880,34 @@ if($('#telegramBtn')) $('#telegramBtn').onclick = async () => {
 // STATELESS ARCHITECTURE HELPERS & SERVER INDICATOR
 // ================================================================
 let localServerOnline = false;
+let activeServerUrl = window.location.origin;
+
 async function checkLocalServerHealth() {
   try {
-    const res = await fetch('http://localhost:3000/api/health');
+    // 1. Try local server first
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch('http://localhost:3000/api/health', { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (res.ok) {
       localServerOnline = true;
+      activeServerUrl = 'http://localhost:3000';
       localStorage.setItem('api_base_url', 'http://localhost:3000');
+      updateServerStatusIndicator();
+      return;
+    }
+  } catch (e) {}
+
+  // 2. Fallback to Vercel (current origin)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch(window.location.origin + '/api/health', { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      localServerOnline = true;
+      activeServerUrl = window.location.origin;
+      localStorage.setItem('api_base_url', window.location.origin);
     } else {
       localServerOnline = false;
     }
@@ -1903,12 +1925,13 @@ function updateServerStatusIndicator() {
     document.body.appendChild(indicator);
   }
   
+  const serverLabel = activeServerUrl.includes('localhost') ? 'Server (Local)' : 'Server (Vercel)';
   if (localServerOnline) {
     indicator.className = 'online';
-    indicator.innerHTML = '<span class="status-dot pulsing"></span> Server';
+    indicator.innerHTML = `<span class="status-dot pulsing"></span> ${serverLabel}`;
   } else {
     indicator.className = 'offline';
-    indicator.innerHTML = '<span class="status-dot"></span> Server';
+    indicator.innerHTML = `<span class="status-dot"></span> ${serverLabel}`;
   }
 }
 
