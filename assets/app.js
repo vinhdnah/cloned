@@ -1905,10 +1905,10 @@ function updateServerStatusIndicator() {
   
   if (localServerOnline) {
     indicator.className = 'online';
-    indicator.innerHTML = '<span class="status-dot pulsing"></span> Local Server: ONLINE (localhost:3000)';
+    indicator.innerHTML = '<span class="status-dot pulsing"></span> Server';
   } else {
     indicator.className = 'offline';
-    indicator.innerHTML = '<span class="status-dot"></span> Local Server: OFFLINE (localhost:3000)';
+    indicator.innerHTML = '<span class="status-dot"></span> Server';
   }
 }
 

@@ -915,7 +915,7 @@ input,textarea,select{background:rgba(2,8,18,.45);border-color:var(--line);borde
 #local-server-status {
   position: fixed;
   bottom: 20px;
-  right: 20px;
+  left: 20px;
   padding: 8px 16px;
   border-radius: 30px;
   font-family: 'Inter', sans-serif;
