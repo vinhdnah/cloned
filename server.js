@@ -279,8 +279,12 @@ app.get('/api/auth/google/connect/:type', (req, res) => {
   req.session.connectionType = type;
   
   const oauth2Client = getOAuth2Client();
+  const driveScope = type === 'destination' 
+    ? 'https://www.googleapis.com/auth/drive' 
+    : 'https://www.googleapis.com/auth/drive.readonly';
+    
   const scopes = [
-    'https://www.googleapis.com/auth/drive.readonly',
+    driveScope,
     'https://www.googleapis.com/auth/userinfo.email'
   ];
   
