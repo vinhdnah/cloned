@@ -1194,6 +1194,9 @@ app.get('/*splat', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Server runs at http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Server runs at http://localhost:${PORT}`);
+  });
+}
+module.exports = app;
