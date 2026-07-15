@@ -161,9 +161,17 @@ async function api(path, opts={}){
   const requestOpts = {...opts};
   delete requestOpts.timeout;
   try{
-    const res = await fetch(path, {
+    const activeBaseUrl = localStorage.getItem('api_base_url') || 'http://localhost:3000';
+    const finalUrl = path.startsWith('http') ? path : (activeBaseUrl + path);
+    const res = await fetch(finalUrl, {
       credentials: 'include',
-      headers: {'Content-Type':'application/json', ...(requestOpts.headers || {})},
+      headers: {
+        'Content-Type':'application/json',
+        'X-User-Email': localStorage.getItem('auth_email') || '',
+        'X-Source-Token': localStorage.getItem('google_token_source') || '',
+        'X-Destination-Token': localStorage.getItem('google_token_destination') || '',
+        ...(requestOpts.headers || {})
+      },
       signal: requestOpts.signal || controller.signal,
       ...requestOpts,
     });
@@ -682,6 +690,7 @@ if($('#telegramBtn')) $('#telegramBtn').hidden = false;
     updateReadiness();
     updateGuideAccess();
     addDailyAccountSignals();
+    updateConnectLinks();
     
   }catch(e){
     me = null;
@@ -958,18 +967,21 @@ async function triggerServerZipDownload(directLinks, archiveName='AutoTool_Downl
   toast('Đang nén ZIP và tải về...');
   
   try {
-    const payloadStr = JSON.stringify({
+    const activeBaseUrl = localStorage.getItem('api_base_url') || 'http://localhost:3000';
+    const payloadObj = {
       archive_name: safeDownloadPart(archiveName, 'AutoTool_Downloads'),
       items: validLinks.map(l => ({
         url: l.url,
         filename: l.filename || l.name || 'video.mp4',
         path: Array.isArray(l.path) ? l.path : [],
-      }))
-    });
+      })),
+      source_token: localStorage.getItem('google_token_source') || ''
+    };
+    const payloadStr = JSON.stringify(payloadObj);
 
     const form = document.createElement('form');
     form.method = 'POST';
-    form.action = '/api/proxy/stream-zip-form';
+    form.action = activeBaseUrl + '/api/proxy/stream-zip-form';
     form.target = '_blank';
     
     const input = document.createElement('input');
@@ -1047,7 +1059,12 @@ async function triggerClientDownloads(directLinks, jobId='', archiveName='AutoTo
       }
       batchNames.add(`${parentKey}/${filename.toLowerCase()}`);
 
-      const url = link.url.startsWith('/api/proxy/') ? window.location.origin + link.url : link.url;
+      const activeBaseUrl = localStorage.getItem('api_base_url') || 'http://localhost:3000';
+      let url = link.url.startsWith('/api/proxy/') ? activeBaseUrl + link.url : link.url;
+      if (url.includes('/api/proxy/download/')) {
+        const sourceToken = localStorage.getItem('google_token_source') || '';
+        url += (url.includes('?') ? '&' : '?') + 'source_token=' + encodeURIComponent(sourceToken);
+      }
       const response = await fetch(url, {credentials:'include'});
       if(!response.ok) throw new Error(`HTTP ${response.status}`);
       const fileHandle = await directoryHandle.getFileHandle(filename, {create:true});
@@ -1731,7 +1748,10 @@ if($('#showLogin')) $('#showLogin').onclick = (e) => { e.preventDefault(); openA
     const btn = e.target.querySelector('button[type="submit"]');
     setLoading(btn, true);
     try{
-      await api('/api/auth/login', {method:'POST', body: JSON.stringify({email: $('#loginEmail').value, password: $('#loginPass').value})});
+      const loginRes = await api('/api/auth/login', {method:'POST', body: JSON.stringify({email: $('#loginEmail').value, password: $('#loginPass').value})});
+    if (loginRes && loginRes.email) {
+      localStorage.setItem('auth_email', loginRes.email);
+    }
       location.reload();
     }catch(err) { toast(err.message, 'error'); }
     finally { setLoading(btn, false); }
@@ -1857,9 +1877,84 @@ if($('#telegramBtn')) $('#telegramBtn').onclick = async () => {
 }
 
 // ================================================================
+// STATELESS ARCHITECTURE HELPERS & SERVER INDICATOR
+// ================================================================
+let localServerOnline = false;
+async function checkLocalServerHealth() {
+  try {
+    const res = await fetch('http://localhost:3000/api/health');
+    if (res.ok) {
+      localServerOnline = true;
+      localStorage.setItem('api_base_url', 'http://localhost:3000');
+    } else {
+      localServerOnline = false;
+    }
+  } catch (e) {
+    localServerOnline = false;
+  }
+  updateServerStatusIndicator();
+}
+
+function updateServerStatusIndicator() {
+  let indicator = document.getElementById('local-server-status');
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.id = 'local-server-status';
+    document.body.appendChild(indicator);
+  }
+  
+  if (localServerOnline) {
+    indicator.className = 'online';
+    indicator.innerHTML = '<span class="status-dot pulsing"></span> Local Server: ONLINE (localhost:3000)';
+  } else {
+    indicator.className = 'offline';
+    indicator.innerHTML = '<span class="status-dot"></span> Local Server: OFFLINE (localhost:3000)';
+  }
+}
+
+function updateConnectLinks() {
+  const activeBaseUrl = localStorage.getItem('api_base_url') || 'http://localhost:3000';
+  const email = localStorage.getItem('auth_email') || 'admin';
+  const redirectBack = window.location.origin + window.location.pathname;
+  
+  const sourceBtn = document.querySelector('a[href*="/api/auth/google/connect/source"]');
+  if (sourceBtn) {
+    sourceBtn.href = `${activeBaseUrl}/api/auth/google/connect/source?email=${email}&redirect_back=${encodeURIComponent(redirectBack)}`;
+  }
+  const destBtn = document.querySelector('a[href*="/api/auth/google/connect/destination"]');
+  if (destBtn) {
+    destBtn.href = `${activeBaseUrl}/api/auth/google/connect/destination?email=${email}&redirect_back=${encodeURIComponent(redirectBack)}`;
+  }
+}
+
+function checkOAuthCallbackHash() {
+  const hash = window.location.hash;
+  if (hash && hash.includes('google-connected')) {
+    try {
+      const queryPart = hash.split('?')[1] || '';
+      const params = new URLSearchParams(queryPart);
+      const type = params.get('type');
+      const tokensStr = params.get('tokens');
+      if (type && tokensStr) {
+        const tokens = JSON.parse(decodeURIComponent(tokensStr));
+        localStorage.setItem('google_token_' + type, JSON.stringify(tokens));
+        toast('Kết nối Google Drive thành công!', 'success');
+      }
+    } catch (e) {
+      console.error('Error parsing OAuth tokens from hash:', e);
+      toast('Lỗi lưu kết nối Google Drive', 'error');
+    }
+    window.location.hash = '#tool';
+  }
+}
+
+// ================================================================
 // INIT
 // ================================================================
 (async function init(){
+  checkOAuthCallbackHash();
+  checkLocalServerHealth();
+  window.setInterval(checkLocalServerHealth, 5000);
   notificationItems = safeStorageJSON(STORAGE.notifications, []);
   if(!Array.isArray(notificationItems)) notificationItems = [];
   if(!notificationItems.length){
@@ -1873,6 +1968,9 @@ if($('#telegramBtn')) $('#telegramBtn').onclick = async () => {
   renderNotifications();
   checkSystemHealth();
   await loadMe();
+  updateConnectLinks();
+  // Periodically ensure links are correct
+  window.setInterval(updateConnectLinks, 2000);
   await syncServerNotifications({announce:false});
   showPage(hashPage || 'home');
   const hashParams = new URLSearchParams(hashQuery);

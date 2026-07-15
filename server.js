@@ -45,6 +45,18 @@ app.use(session({
   cookie: { secure: false }
 }));
 
+// CORS Middleware to support requests from Vercel to localhost
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-User-Email, X-Source-Token, X-Destination-Token');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Google OAuth client helper
 function getOAuth2Client() {
   return new google.auth.OAuth2(
@@ -73,12 +85,39 @@ function verifyAdminCredentials(inputUser, inputPassword, adminHash) {
   return bcrypt.compareSync(inputPassword, adminHash);
 }
 
-// Helper to get Google token (admin token is transient in session, users token is persisted in db.json)
-function getUserToken(sessionEmail, sessionConnections, type = 'source') {
-  if (!sessionEmail) return null;
+// Helper to get Google token (stateless fallback headers, query parameters, or local DB fallback)
+function getUserToken(req, type = 'source') {
+  if (!req) return null;
+  
+  // 1. Read from headers (x-source-token / x-destination-token)
+  const headerVal = req.headers ? (req.headers[`x-${type}-token`] || req.headers[`x-${type}-token`.toLowerCase()]) : null;
+  if (headerVal) {
+    try {
+      return JSON.parse(headerVal);
+    } catch (e) {
+      if (headerVal.startsWith('{')) return null;
+      return { access_token: headerVal, email: 'user@gmail.com' };
+    }
+  }
+
+  // 2. Read from query parameters (for direct download links)
+  const queryVal = req.query ? req.query[`${type}_token`] : null;
+  if (queryVal) {
+    try {
+      return JSON.parse(queryVal);
+    } catch (e) {
+      if (queryVal.startsWith('{')) return null;
+      return { access_token: queryVal, email: 'user@gmail.com' };
+    }
+  }
+
+  // 3. Fallback to session connections (backward compatibility)
+  const sessionEmail = req.session ? req.session.email : null;
+  const sessionConnections = req.session ? req.session.connections : null;
   if (sessionEmail === 'admin') {
     return sessionConnections ? sessionConnections[type] : null;
   }
+  
   const db = readDB();
   const user = db.users.find(u => u.email === sessionEmail);
   return user && user.connections ? user.connections[type] : null;
@@ -161,18 +200,19 @@ app.post('/api/auth/logout', (req, res) => {
 
 // 4. GET /api/me - Retrieve current user and connections state
 app.get('/api/me', (req, res) => {
-  if (!req.session.email) {
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail) {
     return res.status(401).json({ error: 'Chưa đăng nhập' });
   }
 
   const db = readDB();
-  const user = db.users.find(u => u.email === req.session.email);
+  const user = db.users.find(u => u.email === userEmail);
   if (!user) {
     return res.status(401).json({ error: 'Không tìm thấy người dùng' });
   }
   
-  const sourceToken = getUserToken(req.session.email, req.session.connections, 'source');
-  const destToken = getUserToken(req.session.email, req.session.connections, 'destination');
+  const sourceToken = getUserToken(req, 'source');
+  const destToken = getUserToken(req, 'destination');
   
   const sourceConnected = !!sourceToken;
   const destConnected = !!destToken;
@@ -204,10 +244,11 @@ app.get('/api/me', (req, res) => {
 
 // 5. GET /api/me/stats - Dashboard statistics
 app.get('/api/me/stats', (req, res) => {
-  if (!req.session.email) return res.status(401).json({ error: 'Unauthorized' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail) return res.status(401).json({ error: 'Unauthorized' });
 
   const db = readDB();
-  const userJobs = db.jobs.filter(j => j.user_email === req.session.email);
+  const userJobs = db.jobs.filter(j => j.user_email === userEmail);
   const completedJobs = userJobs.filter(j => j.status === 'completed');
   res.json({
     total_files: completedJobs.reduce((acc, job) => acc + (job.direct_links_count || 0), 0),
@@ -243,10 +284,9 @@ app.get('/api/auth/google/connect/:type', (req, res) => {
     return res.status(400).send('Invalid connection type');
   }
 
-  if (!req.session.email) {
-    return res.status(401).send('Vui lòng đăng nhập trước khi liên kết Google Drive');
-  }
-  
+  const email = req.query.email || req.headers['x-user-email'] || req.session.email || 'admin';
+  const redirect_back = req.query.redirect_back || req.headers.referer || '/';
+
   const hasClientId = process.env.GOOGLE_CLIENT_ID && 
                        process.env.GOOGLE_CLIENT_ID !== 'your_google_client_id.apps.googleusercontent.com' &&
                        !process.env.GOOGLE_CLIENT_ID.startsWith('your_');
@@ -261,22 +301,16 @@ app.get('/api/auth/google/connect/:type', (req, res) => {
       email: mockEmail
     };
 
-    if (req.session.email === 'admin') {
-      if (!req.session.connections) req.session.connections = {};
-      req.session.connections[type] = mockToken;
-    } else {
-      const db = readDB();
-      const user = db.users.find(u => u.email === req.session.email);
-      if (user) {
-        if (!user.connections) user.connections = {};
-        user.connections[type] = mockToken;
-        writeDB(db);
-      }
-    }
-    return res.redirect('/#tool?success=Connected');
+    const redirectUrl = `${redirect_back}#google-connected?type=${type}&tokens=${encodeURIComponent(JSON.stringify(mockToken))}`;
+    return res.redirect(redirectUrl);
   }
   
-  req.session.connectionType = type;
+  // Encode type, email, redirect_back in oauth state
+  const state = Buffer.from(JSON.stringify({
+    type,
+    email,
+    redirect_back
+  })).toString('base64');
   
   const oauth2Client = getOAuth2Client();
   const driveScope = type === 'destination' 
@@ -291,6 +325,7 @@ app.get('/api/auth/google/connect/:type', (req, res) => {
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: scopes,
+    state: state,
     prompt: 'consent'
   });
   
@@ -299,11 +334,25 @@ app.get('/api/auth/google/connect/:type', (req, res) => {
 
 // 8. GET /api/auth/google/callback - OAuth callback
 app.get('/api/auth/google/callback', async (req, res) => {
-  const { code } = req.query;
-  const type = req.session.connectionType || 'source';
+  const { code, state } = req.query;
+  
+  let type = 'source';
+  let email = 'admin';
+  let redirect_back = '/';
+
+  if (state) {
+    try {
+      const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf8'));
+      type = decoded.type || 'source';
+      email = decoded.email || 'admin';
+      redirect_back = decoded.redirect_back || '/';
+    } catch (e) {
+      console.error('Error decoding state:', e);
+    }
+  }
   
   if (!code) {
-    return res.redirect('/#tool?error=CodeMissing');
+    return res.redirect(`${redirect_back}#tool?error=CodeMissing`);
   }
   
   try {
@@ -314,37 +363,21 @@ app.get('/api/auth/google/callback', async (req, res) => {
     
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const userInfo = await oauth2.userinfo.get();
-    const email = userInfo.data.email || 'unknown@gmail.com';
+    const googleEmail = userInfo.data.email || 'unknown@gmail.com';
     
     const tokenObject = {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
       expiry_date: tokens.expiry_date,
-      email: email
+      email: googleEmail
     };
 
-    if (req.session.email === 'admin') {
-      if (!req.session.connections) req.session.connections = {};
-      req.session.connections[type] = tokenObject;
-    } else {
-      const db = readDB();
-      const user = db.users.find(u => u.email === req.session.email);
-      if (user) {
-        if (!user.connections) user.connections = {};
-        user.connections[type] = {
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token || (user.connections[type] && user.connections[type].refresh_token),
-          expiry_date: tokens.expiry_date,
-          email: email
-        };
-        writeDB(db);
-      }
-    }
-    
-    res.redirect('/#tool?success=Connected');
+    // Redirect client back to Vercel page and append tokens to the hash
+    const redirectUrl = `${redirect_back}#google-connected?type=${type}&tokens=${encodeURIComponent(JSON.stringify(tokenObject))}`;
+    res.redirect(redirectUrl);
   } catch (err) {
     console.error('OAuth Callback Error:', err);
-    res.redirect('/#tool?error=AuthFailed');
+    res.redirect(`${redirect_back}#tool?error=AuthFailed`);
   }
 });
 
@@ -354,7 +387,8 @@ app.get('/api/auth/google/callback', async (req, res) => {
 
 // 9. POST /api/jobs/scan-folder - Scan Google Drive folder structure
 app.post('/api/jobs/scan-folder', async (req, res) => {
-  if (!req.session.email) return res.status(401).json({ error: 'Unauthorized' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail) return res.status(401).json({ error: 'Unauthorized' });
 
   const { link } = req.body;
   if (!link) {
@@ -367,7 +401,7 @@ app.post('/api/jobs/scan-folder', async (req, res) => {
   }
   const folderId = match[1];
 
-  const sourceToken = getUserToken(req.session.email, req.session.connections, 'source');
+  const sourceToken = getUserToken(req, 'source');
   if (!sourceToken) {
     return res.status(400).json({ error: 'Chưa liên kết Drive nguồn' });
   }
@@ -476,21 +510,24 @@ app.post('/api/jobs/scan-folder', async (req, res) => {
 
 // 9b. GET /api/jobs - Get user's job history list
 app.get('/api/jobs', (req, res) => {
-  if (!req.session.email) return res.status(401).json({ error: 'Unauthorized' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail) return res.status(401).json({ error: 'Unauthorized' });
   const db = readDB();
-  const userJobs = db.jobs.filter(j => j.user_email === req.session.email);
+  const userJobs = db.jobs.filter(j => j.user_email === userEmail);
   res.json(userJobs);
 });
 
 // 9c. GET /api/payments/mine - Get user's payment history list
 app.get('/api/payments/mine', (req, res) => {
-  if (!req.session.email) return res.status(401).json({ error: 'Unauthorized' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail) return res.status(401).json({ error: 'Unauthorized' });
   res.json([]);
 });
 
 // 9d. GET /api/me/deposit-info - Get user's deposit payment info
 app.get('/api/me/deposit-info', (req, res) => {
-  if (!req.session.email) return res.status(401).json({ error: 'Unauthorized' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail) return res.status(401).json({ error: 'Unauthorized' });
   res.json({
     bank_name: "VietinBank",
     account_number: "101872839483",
@@ -501,7 +538,8 @@ app.get('/api/me/deposit-info', (req, res) => {
 
 // 9e. POST /api/payments/topup - Create topup request
 app.post('/api/payments/topup', (req, res) => {
-  if (!req.session.email) return res.status(401).json({ error: 'Unauthorized' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail) return res.status(401).json({ error: 'Unauthorized' });
   const { amount_vnd, transfer_note } = req.body;
   const finalNote = transfer_note || "TOPUP_" + Math.random().toString(36).substr(2, 6).toUpperCase();
   res.json({
@@ -513,14 +551,15 @@ app.post('/api/payments/topup', (req, res) => {
 
 // 10. POST /api/jobs - Submit a new job to process links
 app.post('/api/jobs', async (req, res) => {
-  if (!req.session.email) return res.status(401).json({ error: 'Unauthorized' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail) return res.status(401).json({ error: 'Unauthorized' });
 
   const { links, result_name, output_mode, target_folder_id } = req.body;
   if (!links || !links.length) {
     return res.status(400).json({ error: 'No links provided' });
   }
 
-  const sourceToken = getUserToken(req.session.email, req.session.connections, 'source');
+  const sourceToken = getUserToken(req, 'source');
   if (!sourceToken) {
     return res.status(400).json({ error: 'Chưa kết nối Drive nguồn' });
   }
@@ -554,7 +593,7 @@ app.post('/api/jobs', async (req, res) => {
 });
 
 // Background job processor
-async function processJobInBackground(jobId, sessionConnections) {
+async function processJobInBackground(jobId) {
   const db = readDB();
   const job = db.jobs.find(j => j.id === jobId);
   if (!job) return;
@@ -569,7 +608,7 @@ async function processJobInBackground(jobId, sessionConnections) {
     writeDB(database);
   };
 
-  const sourceToken = getUserToken(job.user_email, sessionConnections, 'source');
+  const sourceToken = job.source_token;
   if (!sourceToken) {
     log('Lỗi: Người dùng chưa liên kết Google Drive nguồn', 'ERROR');
     return;
@@ -635,7 +674,7 @@ async function processJobInBackground(jobId, sessionConnections) {
 
     if (isDriveMode) {
       log('Khởi tạo kết nối tới Drive đích để sao lưu trực tiếp...');
-      const destToken = getUserToken(job.user_email, sessionConnections, 'destination');
+      const destToken = job.dest_token;
       if (!destToken) {
         throw new Error('Chưa liên kết Drive đích. Vui lòng liên kết tài khoản Drive đích.');
       }
@@ -809,6 +848,11 @@ async function processJobInBackground(jobId, sessionConnections) {
       finalJob.progress = 100;
       finalJob.status = 'completed';
       finalJob.stage = isDriveMode ? 'Sao lưu sang Drive đích hoàn tất!' : 'Kết quả sẵn sàng';
+      
+      // Stateless Clean-up tokens to not persist them in db.json forever
+      delete finalJob.source_token;
+      delete finalJob.dest_token;
+      
       writeDB(finalDb);
       log(isDriveMode ? 'Hoàn tất sao lưu trực tiếp sang Drive đích!' : 'Xử lý hoàn tất! Kết quả đã sẵn sàng để tải xuống.');
     }
@@ -820,6 +864,11 @@ async function processJobInBackground(jobId, sessionConnections) {
       finalJob.status = 'error';
       finalJob.stage = 'Có lỗi xảy ra trong quá trình xử lý';
       finalJob.error_message = err.message;
+      
+      // Stateless Clean-up tokens on error
+      delete finalJob.source_token;
+      delete finalJob.dest_token;
+      
       writeDB(finalDb);
       log('Lỗi: ' + err.message, 'ERROR');
     }
@@ -876,7 +925,8 @@ app.post('/api/jobs/:id/complete-client-download', (req, res) => {
 
 // 13c. GET /api/admin/overview - Get admin overview statistics
 app.get('/api/admin/overview', (req, res) => {
-  if (!req.session.email || req.session.email !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail || userEmail !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const db = readDB();
   res.json({
     total_users: db.users.length,
@@ -888,7 +938,8 @@ app.get('/api/admin/overview', (req, res) => {
 
 // 13d. GET /api/admin/users - Get admin user list
 app.get('/api/admin/users', (req, res) => {
-  if (!req.session.email || req.session.email !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail || userEmail !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const db = readDB();
   res.json(db.users.map(u => ({
     id: u.email,
@@ -904,20 +955,23 @@ app.get('/api/admin/users', (req, res) => {
 
 // 13e. GET /api/admin/payments - Get admin payments
 app.get('/api/admin/payments', (req, res) => {
-  if (!req.session.email || req.session.email !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail || userEmail !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   res.json([]);
 });
 
 // 13f. GET /api/admin/jobs - Get admin job list
 app.get('/api/admin/jobs', (req, res) => {
-  if (!req.session.email || req.session.email !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail || userEmail !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const db = readDB();
   res.json(db.jobs);
 });
 
 // 13g. POST /api/admin/users/:id/balance/set - Set exact user balance
 app.post('/api/admin/users/:id/balance/set', (req, res) => {
-  if (!req.session.email || req.session.email !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail || userEmail !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const { id } = req.params;
   const { balance_vnd } = req.body;
   const db = readDB();
@@ -931,7 +985,8 @@ app.post('/api/admin/users/:id/balance/set', (req, res) => {
 
 // 13h. POST /api/admin/users/:id/balance - Modify user balance by delta
 app.post('/api/admin/users/:id/balance', (req, res) => {
-  if (!req.session.email || req.session.email !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail || userEmail !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const { id } = req.params;
   const { amount_vnd } = req.body;
   const db = readDB();
@@ -945,7 +1000,8 @@ app.post('/api/admin/users/:id/balance', (req, res) => {
 
 // 13i. POST /api/admin/users/:id/free-usages - Set or modify user free usages
 app.post('/api/admin/users/:id/free-usages', (req, res) => {
-  if (!req.session.email || req.session.email !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail || userEmail !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const { id } = req.params;
   const { action, amount } = req.body;
   const db = readDB();
@@ -963,7 +1019,8 @@ app.post('/api/admin/users/:id/free-usages', (req, res) => {
 
 // 13j. POST /api/admin/users/:id/plan - Set user plan
 app.post('/api/admin/users/:id/plan', (req, res) => {
-  if (!req.session.email || req.session.email !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail || userEmail !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const { id } = req.params;
   const { plan_code } = req.body;
   const db = readDB();
@@ -977,7 +1034,8 @@ app.post('/api/admin/users/:id/plan', (req, res) => {
 
 // 13k. POST /api/admin/users/:id/clear-plan - Clear user plan
 app.post('/api/admin/users/:id/clear-plan', (req, res) => {
-  if (!req.session.email || req.session.email !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail || userEmail !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const { id } = req.params;
   const db = readDB();
   const user = db.users.find(u => u.email === id);
@@ -990,7 +1048,8 @@ app.post('/api/admin/users/:id/clear-plan', (req, res) => {
 
 // 13l. POST /api/admin/users/:id/password - Set user password
 app.post('/api/admin/users/:id/password', (req, res) => {
-  if (!req.session.email || req.session.email !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail || userEmail !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const { id } = req.params;
   const { password } = req.body;
   const db = readDB();
@@ -1005,7 +1064,8 @@ app.post('/api/admin/users/:id/password', (req, res) => {
 
 // 13m. POST /api/admin/users/:id/toggle-active - Toggle user active status
 app.post('/api/admin/users/:id/toggle-active', (req, res) => {
-  if (!req.session.email || req.session.email !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail || userEmail !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const { id } = req.params;
   const db = readDB();
   const user = db.users.find(u => u.email === id);
@@ -1018,7 +1078,8 @@ app.post('/api/admin/users/:id/toggle-active', (req, res) => {
 
 // 13n. POST /api/admin/users/:id/admin-flag - Set user admin flag
 app.post('/api/admin/users/:id/admin-flag', (req, res) => {
-  if (!req.session.email || req.session.email !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail || userEmail !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const { id } = req.params;
   const { is_admin } = req.body;
   const db = readDB();
@@ -1032,10 +1093,11 @@ app.post('/api/admin/users/:id/admin-flag', (req, res) => {
 
 // 13o. POST /api/drive/destination/folder - Create destination folder
 app.post('/api/drive/destination/folder', async (req, res) => {
-  if (!req.session.email) return res.status(401).json({ error: 'Unauthorized' });
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail) return res.status(401).json({ error: 'Unauthorized' });
   const { name, parent_id } = req.body;
   
-  const destToken = getUserToken(req.session.email, req.session.connections, 'destination');
+  const destToken = getUserToken(req, 'destination');
   if (!destToken) {
     return res.status(400).json({ error: 'Chưa liên kết Drive đích' });
   }
@@ -1070,10 +1132,12 @@ app.post('/api/drive/destination/folder', async (req, res) => {
 
 // 14. GET /api/proxy/download/:fileId - Proxy file downloader
 app.get('/api/proxy/download/:fileId', async (req, res) => {
-  if (!req.session.email) return res.status(401).send('Unauthorized');
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail) return res.status(401).send('Unauthorized');
   
   const { fileId } = req.params;
-  const sourceToken = getUserToken(req.session.email, req.session.connections, 'source');
+  const data = JSON.parse(payload);
+  const sourceToken = data.source_token ? (typeof data.source_token === 'string' ? JSON.parse(data.source_token) : data.source_token) : getUserToken(req, 'source');
   if (!sourceToken) {
     return res.status(401).send('Chưa liên kết Drive nguồn');
   }
@@ -1115,7 +1179,8 @@ app.get('/api/proxy/download/:fileId', async (req, res) => {
 
 // 15. POST /api/proxy/stream-zip-form - Stream multiple files zipping on the fly
 app.post('/api/proxy/stream-zip-form', async (req, res) => {
-  if (!req.session.email) return res.status(401).send('Unauthorized');
+  const userEmail = req.headers['x-user-email'] || req.session.email;
+  if (!userEmail) return res.status(401).send('Unauthorized');
 
   const { payload } = req.body;
   if (!payload) return res.status(400).send('Payload missing');
@@ -1130,7 +1195,7 @@ app.post('/api/proxy/stream-zip-form', async (req, res) => {
   const archive = new ZipArchive({ zlib: { level: 5 } });
   archive.pipe(res);
   
-  const sourceToken = getUserToken(req.session.email, req.session.connections, 'source');
+  const sourceToken = data.source_token ? (typeof data.source_token === 'string' ? JSON.parse(data.source_token) : data.source_token) : getUserToken(req, 'source');
   if (!sourceToken) {
     return res.status(401).send('Chưa liên kết Drive nguồn');
   }
