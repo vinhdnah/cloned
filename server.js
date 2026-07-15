@@ -136,7 +136,6 @@ app.post('/api/auth/login', (req, res) => {
   
   if (isAdmin) {
     req.session.email = 'admin';
-    // Clear any previous admin connections in session
     req.session.connections = {};
     return res.json({ status: 'ok', email: 'admin' });
   }
@@ -416,7 +415,11 @@ app.post('/api/jobs/scan-folder', async (req, res) => {
     
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
     
-    const folderMeta = await drive.files.get({ fileId: folderId, fields: 'name' });
+    const folderMeta = await drive.files.get({ 
+      fileId: folderId, 
+      fields: 'name',
+      supportsAllDrives: true 
+    });
     const rootFolderName = folderMeta.data.name;
 
     const items = [];
@@ -427,7 +430,9 @@ app.post('/api/jobs/scan-folder', async (req, res) => {
           q: `'${currentId}' in parents and trashed = false`,
           fields: 'nextPageToken, files(id, name, mimeType, size)',
           pageSize: 500,
-          pageToken: pageToken
+          pageToken: pageToken,
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: true
         });
         
         for (const file of response.data.files || []) {
@@ -465,7 +470,7 @@ app.post('/api/jobs/scan-folder', async (req, res) => {
   }
 });
 
-// [MỚI] 9b. GET /api/jobs - Get user's job history list
+// 9b. GET /api/jobs - Get user's job history list
 app.get('/api/jobs', (req, res) => {
   if (!req.session.email) return res.status(401).json({ error: 'Unauthorized' });
   const db = readDB();
@@ -473,13 +478,13 @@ app.get('/api/jobs', (req, res) => {
   res.json(userJobs);
 });
 
-// [MỚI] 9c. GET /api/payments/mine - Get user's payment history list
+// 9c. GET /api/payments/mine - Get user's payment history list
 app.get('/api/payments/mine', (req, res) => {
   if (!req.session.email) return res.status(401).json({ error: 'Unauthorized' });
   res.json([]);
 });
 
-// [MỚI] 9d. GET /api/me/deposit-info - Get user's deposit payment info
+// 9d. GET /api/me/deposit-info - Get user's deposit payment info
 app.get('/api/me/deposit-info', (req, res) => {
   if (!req.session.email) return res.status(401).json({ error: 'Unauthorized' });
   res.json({
@@ -490,7 +495,7 @@ app.get('/api/me/deposit-info', (req, res) => {
   });
 });
 
-// [MỚI] 9e. POST /api/payments/topup - Create topup request
+// 9e. POST /api/payments/topup - Create topup request
 app.post('/api/payments/topup', (req, res) => {
   if (!req.session.email) return res.status(401).json({ error: 'Unauthorized' });
   const { amount_vnd, transfer_note } = req.body;
@@ -538,7 +543,6 @@ app.post('/api/jobs', async (req, res) => {
   db.logs[jobId] = [{ level: 'INFO', message: 'Đã nhận yêu cầu xử lý từ Client.' }];
   writeDB(db);
 
-  // Store the active connection in the background processor session mockup
   const sessionConnections = req.session.connections || {};
   processJobInBackground(jobId, sessionConnections);
 
@@ -616,9 +620,26 @@ async function processJobInBackground(jobId, sessionConnections) {
     job.status = 'running';
     job.progress = 10;
     
-    const oauth2Client = getOAuth2Client();
-    oauth2Client.setCredentials(sourceToken);
-    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+    const oauth2ClientSource = getOAuth2Client();
+    oauth2ClientSource.setCredentials(sourceToken);
+    const driveSource = google.drive({ version: 'v3', auth: oauth2ClientSource });
+
+    // Check if we are saving directly to Destination Drive
+    const isDriveMode = job.output_mode === 'drive';
+    let driveDest = null;
+    let targetFolderId = job.target_folder_id || 'root';
+
+    if (isDriveMode) {
+      log('Khởi tạo kết nối tới Drive đích để sao lưu trực tiếp...');
+      const destToken = getUserToken(job.user_email, sessionConnections, 'destination');
+      if (!destToken) {
+        throw new Error('Chưa liên kết Drive đích. Vui lòng liên kết tài khoản Drive đích.');
+      }
+      
+      const oauth2ClientDest = getOAuth2Client();
+      oauth2ClientDest.setCredentials(destToken);
+      driveDest = google.drive({ version: 'v3', auth: oauth2ClientDest });
+    }
     
     log('Bắt đầu bóc tách và phân tích các liên kết...');
     job.progress = 30;
@@ -628,52 +649,114 @@ async function processJobInBackground(jobId, sessionConnections) {
       const link = job.links[idx];
       log(`Đang xử lý liên kết ${idx + 1}/${job.links.length}...`);
       
+      // 1. Check if it's a folder link
       const folderMatch = link.match(/\/folders\/([a-zA-Z0-9-_]+)/);
       if (folderMatch) {
         const folderId = folderMatch[1];
         try {
-          log(`Đang quét thư mục ${folderId}...`);
-          
-          async function scanFolder(currentId, currentPath) {
-            let pageToken = null;
-            do {
-              const response = await drive.files.list({
-                q: `'${currentId}' in parents and trashed = false`,
-                fields: 'nextPageToken, files(id, name, mimeType, size)',
-                pageSize: 500,
-                pageToken: pageToken
+          if (isDriveMode) {
+            log(`Đang sao chép cấu trúc thư mục nguồn ${folderId} sang Drive đích...`);
+            
+            async function copyFolderRecursive(srcId, destParentId) {
+              const srcMeta = await driveSource.files.get({ 
+                fileId: srcId, 
+                fields: 'name',
+                supportsAllDrives: true
               });
               
-              for (const file of response.data.files || []) {
-                const isFolder = file.mimeType === 'application/vnd.google-apps.folder';
-                if (isFolder) {
-                  await scanFolder(file.id, [...currentPath, file.name]);
-                } else {
-                  const downloadUrl = `/api/proxy/download/${file.id}`;
-                  directLinks.push({
-                    ok: true,
-                    name: file.name,
-                    filename: file.name,
-                    url: downloadUrl,
-                    path: [job.result_name, ...currentPath]
-                  });
+              // Create folder on destination
+              const newFolder = await driveDest.files.create({
+                requestBody: {
+                  name: srcMeta.data.name,
+                  mimeType: 'application/vnd.google-apps.folder',
+                  parents: [destParentId]
+                },
+                fields: 'id',
+                supportsAllDrives: true
+              });
+              const newFolderId = newFolder.data.id;
+              
+              let pageToken = null;
+              do {
+                const response = await driveSource.files.list({
+                  q: `'${srcId}' in parents and trashed = false`,
+                  fields: 'nextPageToken, files(id, name, mimeType)',
+                  pageSize: 100,
+                  pageToken,
+                  supportsAllDrives: true,
+                  includeItemsFromAllDrives: true
+                });
+                
+                for (const file of response.data.files || []) {
+                  if (file.mimeType === 'application/vnd.google-apps.folder') {
+                    await copyFolderRecursive(file.id, newFolderId);
+                  } else {
+                    await driveDest.files.copy({
+                      fileId: file.id,
+                      requestBody: {
+                        name: file.name,
+                        parents: [newFolderId]
+                      },
+                      supportsAllDrives: true
+                    });
+                  }
                 }
-              }
-              pageToken = response.data.nextPageToken;
-            } while (pageToken);
+                pageToken = response.data.nextPageToken;
+              } while (pageToken);
+            }
+            
+            await copyFolderRecursive(folderId, targetFolderId);
+            log(`Sao chép thư mục hoàn tất!`);
+          } else {
+            log(`Đang quét cấu trúc thư mục nguồn ${folderId}...`);
+            
+            async function scanFolder(currentId, currentPath) {
+              let pageToken = null;
+              do {
+                const response = await driveSource.files.list({
+                  q: `'${currentId}' in parents and trashed = false`,
+                  fields: 'nextPageToken, files(id, name, mimeType, size)',
+                  pageSize: 500,
+                  pageToken: pageToken,
+                  supportsAllDrives: true,
+                  includeItemsFromAllDrives: true
+                });
+                
+                for (const file of response.data.files || []) {
+                  const isFolder = file.mimeType === 'application/vnd.google-apps.folder';
+                  if (isFolder) {
+                    await scanFolder(file.id, [...currentPath, file.name]);
+                  } else {
+                    const downloadUrl = `/api/proxy/download/${file.id}`;
+                    directLinks.push({
+                      ok: true,
+                      name: file.name,
+                      filename: file.name,
+                      url: downloadUrl,
+                      path: [job.result_name, ...currentPath]
+                    });
+                  }
+                }
+                pageToken = response.data.nextPageToken;
+              } while (pageToken);
+            }
+            
+            const folderMeta = await driveSource.files.get({ 
+              fileId: folderId, 
+              fields: 'name',
+              supportsAllDrives: true 
+            });
+            const rootFolderName = folderMeta.data.name;
+            await scanFolder(folderId, [rootFolderName]);
           }
-          
-          const folderMeta = await drive.files.get({ fileId: folderId, fields: 'name' });
-          const rootFolderName = folderMeta.data.name;
-          await scanFolder(folderId, [rootFolderName]);
-          log(`Quét thư mục ${rootFolderName} thành công!`);
         } catch (err) {
-          console.error(`Error scanning folder ${folderId}:`, err.message);
-          directLinks.push({ ok: false, url: null, name: `Lỗi quét thư mục: ${err.message}`, filename: 'Lỗi', path: [] });
+          console.error(`Error scanning/copying folder ${folderId}:`, err.message);
+          directLinks.push({ ok: false, url: null, name: `Lỗi xử lý thư mục: ${err.message}`, filename: 'Lỗi', path: [] });
         }
         continue;
       }
 
+      // 2. Otherwise process as a file link
       const match = link.match(/\/file\/d\/([a-zA-Z0-9-_]+)/) || link.match(/id=([a-zA-Z0-9-_]+)/);
       if (!match) {
         directLinks.push({ ok: false, url: null, name: 'Invalid Link', filename: 'Invalid Link', path: [] });
@@ -682,16 +765,32 @@ async function processJobInBackground(jobId, sessionConnections) {
       
       const fileId = match[1];
       try {
-        const meta = await drive.files.get({ fileId, fields: 'name, mimeType, size' });
-        const downloadUrl = `/api/proxy/download/${fileId}`;
-        
-        directLinks.push({
-          ok: true,
-          name: meta.data.name,
-          filename: meta.data.name,
-          url: downloadUrl,
-          path: [job.result_name]
+        const meta = await driveSource.files.get({ 
+          fileId: fileId, 
+          fields: 'name, mimeType, size',
+          supportsAllDrives: true
         });
+        
+        if (isDriveMode) {
+          log(`Đang sao chép file ${meta.data.name} sang Drive đích...`);
+          await driveDest.files.copy({
+            fileId: fileId,
+            requestBody: {
+              name: meta.data.name,
+              parents: [targetFolderId]
+            },
+            supportsAllDrives: true
+          });
+        } else {
+          const downloadUrl = `/api/proxy/download/${fileId}`;
+          directLinks.push({
+            ok: true,
+            name: meta.data.name,
+            filename: meta.data.name,
+            url: downloadUrl,
+            path: [job.result_name]
+          });
+        }
       } catch (err) {
         console.error(`Error resolving file ${fileId}:`, err.message);
         directLinks.push({ ok: false, url: null, name: `Lỗi: ${err.message}`, filename: 'Lỗi', path: [] });
@@ -702,12 +801,12 @@ async function processJobInBackground(jobId, sessionConnections) {
     const finalJob = finalDb.jobs.find(j => j.id === jobId);
     if (finalJob) {
       finalJob.direct_links = directLinks;
-      finalJob.direct_links_count = directLinks.filter(l => l.ok).length;
+      finalJob.direct_links_count = isDriveMode ? job.links.length : directLinks.filter(l => l.ok).length;
       finalJob.progress = 100;
       finalJob.status = 'completed';
-      finalJob.stage = 'Kết quả sẵn sàng';
+      finalJob.stage = isDriveMode ? 'Sao lưu sang Drive đích hoàn tất!' : 'Kết quả sẵn sàng';
       writeDB(finalDb);
-      log('Xử lý hoàn tất! Kết quả đã sẵn sàng để tải xuống.');
+      log(isDriveMode ? 'Hoàn tất sao lưu trực tiếp sang Drive đích!' : 'Xử lý hoàn tất! Kết quả đã sẵn sàng để tải xuống.');
     }
   } catch (err) {
     console.error('Job error:', err);
@@ -927,6 +1026,44 @@ app.post('/api/admin/users/:id/admin-flag', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// 13o. POST /api/drive/destination/folder - Create destination folder
+app.post('/api/drive/destination/folder', async (req, res) => {
+  if (!req.session.email) return res.status(401).json({ error: 'Unauthorized' });
+  const { name, parent_id } = req.body;
+  
+  const destToken = getUserToken(req.session.email, req.session.connections, 'destination');
+  if (!destToken) {
+    return res.status(400).json({ error: 'Chưa liên kết Drive đích' });
+  }
+
+  if (destToken.access_token === 'mock_access_token') {
+    return res.json({ id: 'mock_dest_folder_id', name: name || 'AutoTool Results' });
+  }
+
+  try {
+    const oauth2Client = getOAuth2Client();
+    oauth2Client.setCredentials(destToken);
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    const folderMetadata = {
+      name: name || 'AutoTool Results',
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: parent_id ? [parent_id] : []
+    };
+
+    const response = await drive.files.create({
+      requestBody: folderMetadata,
+      fields: 'id, name',
+      supportsAllDrives: true
+    });
+
+    res.json(response.data);
+  } catch (err) {
+    console.error('Create Dest Folder Error:', err);
+    res.status(500).json({ error: 'Không thể tạo thư mục đích: ' + err.message });
+  }
+});
+
 // 14. GET /api/proxy/download/:fileId - Proxy file downloader
 app.get('/api/proxy/download/:fileId', async (req, res) => {
   if (!req.session.email) return res.status(401).send('Unauthorized');
@@ -950,7 +1087,11 @@ app.get('/api/proxy/download/:fileId', async (req, res) => {
     oauth2Client.setCredentials(sourceToken);
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
     
-    const meta = await drive.files.get({ fileId, fields: 'name, size, mimeType' });
+    const meta = await drive.files.get({ 
+      fileId, 
+      fields: 'name, size, mimeType',
+      supportsAllDrives: true
+    });
     
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(meta.data.name)}"`);
     if (meta.data.size) res.setHeader('Content-Length', meta.data.size);
