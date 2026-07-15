@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "archiver": "^8.0.0",
+    "axios": "^1.18.1",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "googleapis": "^173.0.0",
+    "puppeteer": "^25.3.0",
+    "ws": "^8.21.0"
+  }
+}

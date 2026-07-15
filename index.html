@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AutoTool Pro | Xử lý Google Drive nhanh, gọn, có kiểm soát</title>
+    <meta name="description" content="Xử lý nhiều liên kết Google Drive trong một quy trình: tải từng file, gom ZIP hoặc chuyển thẳng sang Drive đích." />
+    <meta name="theme-color" content="#07101f" />
+    <meta property="og:title" content="AutoTool Pro | Drive workflow" />
+    <meta property="og:description" content="Dán liên kết, chọn đầu ra và theo dõi toàn bộ tiến trình xử lý Google Drive tại một nơi." />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2300b894'/><text x='50' y='65' font-family='Arial' font-weight='bold' font-size='50' fill='white' text-anchor='middle'>A</text></svg>" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/styles.css?v=premium-navy-v15tz" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <button class="brand nav-link" data-page="home" aria-label="Về trang chủ">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+          <span><b>AutoTool<span>Pro</span></b><small>Drive workflow</small></span>
+        </button>
+        <button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-label="Mở menu" aria-expanded="false"><span></span><span></span><span></span></button>
+        <nav class="nav" id="mainNav" aria-label="Điều hướng chính">
+          <button class="nav-link active" data-page="home">Tổng quan</button>
+          <button class="nav-link" data-page="tool">Workspace</button>
+          <button class="nav-link" data-page="jobs">Lịch sử</button>
+          <button class="nav-link" data-page="plans" style="display:none;">Bảng giá</button>
+          <button class="nav-link" data-page="topup" style="display:none;">Nạp tiền</button>
+          <button class="nav-link" data-page="guide">Hướng dẫn</button>
+          <div class="mobile-account-menu" id="mobileAccountMenu" hidden>
+            <button type="button" id="mobileChangePassBtn"><span>⚙</span> Đổi mật khẩu</button>
+            <button type="button" id="mobileLogoutBtn" class="danger"><span>↗</span> Đăng xuất</button>
+          </div>
+        </nav>
+        <div class="user-box">
+          <div class="notification-center">
+            <button class="icon-btn notification-btn" id="notificationBtn" type="button" aria-label="Mở trung tâm thông báo" aria-expanded="false" aria-controls="notificationPanel">
+              <span class="bell-icon" aria-hidden="true">◉</span>
+              <span class="notification-badge" id="notificationBadge" hidden>0</span>
+            </button>
+            <div class="notification-panel" id="notificationPanel" hidden>
+              <div class="notification-panel-head">
+                <div><span class="panel-kicker">Cập nhật tức thời</span><h3>Thông báo</h3></div>
+                <button class="text-btn" id="markAllReadBtn" type="button">Đã đọc hết</button>
+              </div>
+              <div class="notification-permission" id="notificationPermission">
+                <div><b>Nhận báo ngay cả khi chuyển tab</b><span>Bật thông báo trình duyệt cho job và giao dịch.</span></div>
+                <button class="btn small ghost" id="enableBrowserNotifyBtn" type="button">Bật</button>
+              </div>
+              <div class="notification-list" id="notificationList" aria-live="polite"></div>
+              <div class="notification-quick-actions" id="notificationQuickActions" hidden>
+                <button type="button" id="notifyTelegramQuick"><span>✦</span>Telegram</button>
+                <button type="button" id="notifyThemeQuick"><span>☾</span>Giao diện</button>
+                <button type="button" id="notifyPasswordQuick"><span>⚙</span>Mật khẩu</button>
+                <button type="button" id="notifyLogoutQuick"><span>↗</span>Đăng xuất</button>
+              </div>
+              <button class="notification-guide-link nav-link" data-page="guide" data-guide-target="guide-notifications" type="button">Xem cách thiết lập thông báo <span>→</span></button>
+            </div>
+          </div>
+          <button class="theme-toggle" id="themeToggle" type="button" aria-label="Đổi giao diện" title="Đổi giao diện"><span aria-hidden="true">☾</span></button>
+          <div class="user-summary" id="userSummary" hidden><span class="presence-dot"></span><span id="userText"></span></div>
+          <button class="btn small primary" id="loginBtn">Đăng nhập</button>
+          <div class="account-actions" id="accountActions">
+            <button class="icon-btn" id="telegramBtn" hidden title="Thông báo Telegram" aria-label="Thông báo Telegram">✦</button>
+            <button class="icon-btn" id="changePassBtn" hidden title="Đổi mật khẩu" aria-label="Đổi mật khẩu">⚙</button>
+            <button class="icon-btn" id="logoutBtn" hidden title="Đăng xuất" aria-label="Đăng xuất">↗</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section id="page-home" class="page active">
+        <div class="hero hero-premium">
+          <div class="hero-copy">
+            <div class="hero-kicker"><span></span> Workspace xử lý Drive tập trung</div>
+            <h1>Biến link Drive thành <em>kết quả sẵn dùng.</em></h1>
+            <p class="lead">Dán một hoặc hàng trăm liên kết, chọn cách nhận file và để AutoTool Pro xử lý phần còn lại. Không extension, không cookie thủ công.</p>
+            <div class="actions">
+              <button class="btn primary btn-hero nav-link" data-page="tool">Mở workspace <span>→</span></button>
+              <button class="btn ghost btn-hero nav-link" data-page="guide">Xem cách hoạt động</button>
+            </div>
+            <div class="trust-row">
+              <span><i>✓</i> Tải từng file</span>
+              <span><i>✓</i> Gom thành ZIP</span>
+              <span><i>✓</i> Chuyển Drive → Drive</span>
+            </div>
+          </div>
+          <div class="hero-card glass-card product-preview">
+            <div class="preview-top"><div><span class="preview-dot"></span><b>Job đang xử lý</b></div><span class="live-pill">LIVE</span></div>
+            <div class="preview-file"><div class="file-icon">D</div><div><b>Khoá học Drive</b><small>48 liên kết · ZIP đầu ra</small></div><strong>72%</strong></div>
+            <div class="preview-progress"><i></i></div>
+            <div class="preview-stats"><div><span>Đã xử lý</span><b>35 file</b></div><div><span>Thời gian</span><b>02:14</b></div><div><span>Trạng thái</span><b class="success-text">Ổn định</b></div></div>
+            <div class="preview-log"><span></span><p><b>Đang chuẩn bị đầu ra...</b><small>Cấu trúc thư mục được giữ nguyên</small></p><i>✓</i></div>
+          </div>
+        </div>
+
+        <div class="section-intro"><span>Tại sao AutoTool Pro</span><h2>Một quy trình, ba cách nhận kết quả.</h2><p>Tập trung những thao tác rời rạc vào một workspace rõ ràng, có trạng thái và lịch sử.</p></div>
+        <div class="feature-grid feature-premium">
+          <article><span class="feature-no">01</span><div class="feature-icon">↓</div><b>Tải linh hoạt</b><p>Nhận từng file trên thiết bị hoặc gom toàn bộ thành một file ZIP duy nhất.</p></article>
+          <article><span class="feature-no">02</span><div class="feature-icon">⇄</div><b>Drive → Drive</b><p>Chuyển trực tiếp sang tài khoản đích và giữ cấu trúc thư mục khi phù hợp.</p></article>
+          <article><span class="feature-no">03</span><div class="feature-icon">◎</div><b>Theo dõi trực quan</b><p>Xem tiến độ, thời gian ước tính, nhật ký và kết quả của từng job.</p></article>
+          <article><span class="feature-no">04</span><div class="feature-icon">◇</div><b>Kiểm soát truy cập</b><p>Kết nối bằng OAuth; thông tin kết nối được mã hoá trước khi lưu.</p></article>
+        </div>
+
+        <!-- DASHBOARD THỐNG KÊ - Chỉ hiện khi đã đăng nhập -->
+        <div id="statsDashboard" class="stats-dashboard" style="display:none">
+          <div class="dashboard-heading">
+            <div class="section-intro compact"><span>Không gian của bạn</span><h2>Toàn cảnh sử dụng</h2><p>Mọi chỉ số quan trọng được gom tại một nơi để bạn nắm tình hình trong vài giây.</p></div>
+            <button class="btn ghost small nav-link" data-page="jobs">Xem toàn bộ lịch sử <span>→</span></button>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-card accent-blue">
+              <div class="stat-top"><div class="stat-icon">◎</div><span>Phiên xử lý</span></div>
+              <div class="stat-value" id="statJobs">0</div>
+              <div class="stat-label">Tổng job đã tạo</div>
+            </div>
+            <div class="stat-card accent-green">
+              <div class="stat-top"><div class="stat-icon">✓</div><span>Ổn định</span></div>
+              <div class="stat-value" id="statSuccess">0%</div>
+              <div class="stat-label">Tỷ lệ hoàn tất</div>
+            </div>
+            <div class="stat-card accent-violet">
+              <div class="stat-top"><div class="stat-icon">↗</div><span>Kết quả</span></div>
+              <div class="stat-value" id="statFiles">0</div>
+              <div class="stat-label">File đã xử lý</div>
+            </div>
+            <div class="stat-card accent-cyan">
+              <div class="stat-top"><div class="stat-icon">◫</div><span>Dữ liệu</span></div>
+              <div class="stat-value" id="statSize">0 MB</div>
+              <div class="stat-label">Tổng dung lượng ghi nhận</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-guide" class="page guide-page">
+        <div class="guide-hero">
+          <div>
+            <p class="eyebrow">Trung tâm trợ giúp</p>
+            <h2>Từ lần đầu đăng nhập đến khi nhận đủ file.</h2>
+            <p>Hướng dẫn toàn bộ chức năng bằng từng bước ngắn, hình minh họa đúng vị trí nút bấm và mẹo xử lý lỗi thường gặp.</p>
+          </div>
+          <div class="guide-search-box">
+            <label for="guideSearch">Bạn cần tìm gì?</label>
+            <div><span aria-hidden="true">⌕</span><input id="guideSearch" type="search" placeholder="Ví dụ: nạp tiền, quét folder, tải ZIP..." autocomplete="off" /></div>
+            <small id="guideSearchStatus">10 hướng dẫn dành cho người dùng</small>
+          </div>
+        </div>
+
+        <div class="guide-quick-flow" aria-label="Quy trình bắt đầu nhanh">
+          <div><span>01</span><b>Đăng nhập</b><small>Tạo tài khoản</small></div><i>→</i>
+          <div><span>02</span><b>Kết nối Drive</b><small>Chọn tài khoản nguồn</small></div><i>→</i>
+          <div><span>03</span><b>Dán link</b><small>Chọn đầu ra</small></div><i>→</i>
+          <div><span>04</span><b>Nhận kết quả</b><small>Tải hoặc chuyển Drive</small></div>
+        </div>
+
+        <div class="guide-layout">
+          <aside class="guide-toc" aria-label="Mục lục hướng dẫn">
+            <div class="guide-toc-title"><span class="panel-kicker">Mục lục</span><b>Chức năng người dùng</b></div>
+            <button class="active" data-guide-target="guide-account"><span>01</span>Tài khoản</button>
+            <button data-guide-target="guide-plans" style="display:none;"><span>02</span>Gói sử dụng</button>
+            <button data-guide-target="guide-topup" style="display:none;"><span>03</span>Nạp tiền</button>
+            <button data-guide-target="guide-connect"><span>04</span>Kết nối Drive</button>
+            <button data-guide-target="guide-modes"><span>05</span>Ba chế độ đầu ra</button>
+            <button data-guide-target="guide-links"><span>06</span>Dán & kiểm tra link</button>
+            <button data-guide-target="guide-scan"><span>07</span>Quét thư mục</button>
+            <button data-guide-target="guide-progress"><span>08</span>Tiến trình & kết quả</button>
+            <button data-guide-target="guide-history"><span>09</span>Lịch sử job</button>
+            <button data-guide-target="guide-notifications"><span>10</span>Thông báo & cài đặt</button>
+            <button class="guide-admin-link" id="guideAdminToc" data-guide-target="guide-admin" hidden><span>A</span>Dành cho admin</button>
+          </aside>
+
+          <div class="guide-content" id="guideContent">
+            <div class="guide-category-head"><span>Bắt đầu</span><h3>Chuẩn bị tài khoản và quyền sử dụng</h3></div>
+
+            <article class="guide-module" id="guide-account" data-guide-keywords="đăng nhập đăng ký tài khoản google mật khẩu quên mật khẩu">
+              <div class="guide-copy">
+                <div class="guide-number">01</div>
+                <span class="step-badge">Tài khoản</span>
+                <h3>Đăng ký và đăng nhập</h3>
+                <p>Bạn có thể dùng email + mật khẩu hoặc đăng nhập bằng Google. Tài khoản đăng nhập website và tài khoản Drive nguồn có thể khác nhau.</p>
+                <ol class="guide-checklist">
+                  <li><span>1</span><div>Nhấn <b>Đăng nhập</b> ở góc trên bên phải.</div></li>
+                  <li><span>2</span><div>Chọn <b>Đăng ký mới</b>, nhập tên, email và mật khẩu từ 6 ký tự; hoặc dùng nút Google.</div></li>
+                  <li><span>3</span><div>Sau khi vào hệ thống, thanh trên cùng sẽ hiện tên, vai trò và số dư của bạn.</div></li>
+                  <li><span>4</span><div>Nếu quên mật khẩu, mở mục <b>Quên mật khẩu</b> để xem cách liên hệ hỗ trợ.</div></li>
+                </ol>
+                <div class="guide-tip"><b>Mẹo:</b> Không chia sẻ mật khẩu hoặc mã đăng nhập cho bất kỳ ai, kể cả người tự nhận là hỗ trợ.</div>
+              </div>
+              <figure class="guide-visual"><img src="assets/guides/01-account.svg" alt="Minh họa vị trí nút đăng nhập, đăng ký và đăng nhập Google" loading="lazy" /><figcaption>Ba vị trí cần chú ý khi tạo tài khoản.</figcaption></figure>
+            </article>
+
+            <article class="guide-module reverse" id="guide-plans" style="display:none;" style="display:none;" data-guide-keywords="gói bảng giá mua gói số dư thời hạn quyền sử dụng">
+              <div class="guide-copy">
+                <div class="guide-number">02</div>
+                <span class="step-badge accent">Quyền sử dụng</span>
+                <h3>Chọn và mua gói</h3>
+                <p>Mọi gói trả phí đều mở đầy đủ tính năng; điểm khác nhau chính là thời hạn sử dụng.</p>
+                <ol class="guide-checklist">
+                  <li><span>1</span><div>Vào <b>Bảng giá</b> và đọc thời hạn trên từng thẻ gói.</div></li>
+                  <li><span>2</span><div>Kiểm tra <b>Số dư</b> ở góc phải của trang.</div></li>
+                  <li><span>3</span><div>Nhấn <b>Mua gói</b>. Nếu đủ số dư, quyền được mở ngay.</div></li>
+                  <li><span>4</span><div>Quay lại <b>Workspace</b>; trạng thái “Gói sử dụng” phải chuyển sang màu xanh.</div></li>
+                </ol>
+                <div class="guide-tip warning"><b>Lưu ý:</b> Hệ thống không tự gia hạn. Hãy kiểm tra ngày hết hạn trong trung tâm thông báo.</div>
+              </div>
+              <figure class="guide-visual"><img src="assets/guides/02-plans.svg" alt="Minh họa chọn gói và nút mua gói" loading="lazy" /><figcaption>Chọn thời hạn phù hợp rồi xác nhận bằng nút Mua gói.</figcaption></figure>
+            </article>
+
+            <article class="guide-module" id="guide-topup" style="display:none;" style="display:none;" data-guide-keywords="nạp tiền qr chuyển khoản mã nạp sepay số dư ngân hàng">
+              <div class="guide-copy">
+                <div class="guide-number">03</div>
+                <span class="step-badge">Thanh toán</span>
+                <h3>Nạp tiền bằng QR tự động</h3>
+                <p>Mã nạp là định danh riêng của tài khoản. Chuyển đúng mã giúp hệ thống tự nhận giao dịch và cộng số dư.</p>
+                <ol class="guide-checklist">
+                  <li><span>1</span><div>Vào <b>Nạp tiền</b>, chọn nhanh số tiền hoặc tự nhập.</div></li>
+                  <li><span>2</span><div>Quét QR bằng ứng dụng ngân hàng. QR đã điền sẵn số tiền và nội dung.</div></li>
+                  <li><span>3</span><div>Trước khi xác nhận, kiểm tra nội dung chuyển khoản đúng tuyệt đối với <b>Mã nạp</b>.</div></li>
+                  <li><span>4</span><div>Chờ giao dịch xuất hiện trong <b>Lịch sử nạp</b>, sau đó tải lại trang nếu số dư chưa đổi.</div></li>
+                </ol>
+                <div class="guide-tip danger"><b>Quan trọng:</b> Không thêm chữ, dấu cách hoặc lời nhắn khác vào nội dung chuyển khoản.</div>
+              </div>
+              <figure class="guide-visual"><img src="assets/guides/03-topup.svg" alt="Minh họa chọn số tiền, quét QR và kiểm tra mã nạp" loading="lazy" /><figcaption>Ba điểm cần khớp: số tiền, QR và mã nạp.</figcaption></figure>
+            </article>
+
+            <div class="guide-category-head"><span>Workspace</span><h3>Tạo và vận hành một job</h3></div>
+
+            <article class="guide-module reverse" id="guide-connect" data-guide-keywords="kết nối drive nguồn oauth google quyền truy cập tài khoản">
+              <div class="guide-copy">
+                <div class="guide-number">04</div>
+                <span class="step-badge accent">Google OAuth</span>
+                <h3>Kết nối Drive nguồn</h3>
+                <p>Drive nguồn phải là tài khoản có quyền xem các file hoặc thư mục bạn muốn xử lý. Bạn chỉ cần kết nối một lần.</p>
+                <ol class="guide-checklist">
+                  <li><span>1</span><div>Trong <b>Workspace</b>, tìm thẻ <b>Kết nối Drive nguồn</b>.</div></li>
+                  <li><span>2</span><div>Nhấn <b>Kết nối Google</b> và chọn đúng tài khoản có quyền xem file.</div></li>
+                  <li><span>3</span><div>Xác nhận quyền truy cập cần thiết trên trang Google.</div></li>
+                  <li><span>4</span><div>Khi quay về, email Drive nguồn và dấu xanh “Đã kết nối” sẽ xuất hiện.</div></li>
+                </ol>
+                <div class="guide-tip"><b>An toàn:</b> Kết nối dùng OAuth; bạn không phải nhập mật khẩu Google vào AutoTool Pro.</div>
+              </div>
+              <figure class="guide-visual"><img src="assets/guides/04-connect.svg" alt="Minh họa nút kết nối Google và trạng thái Drive nguồn" loading="lazy" /><figcaption>Chọn đúng tài khoản có quyền xem dữ liệu nguồn.</figcaption></figure>
+            </article>
+
+            <article class="guide-module" id="guide-modes" data-guide-keywords="tải từng file zip nén drive đích updrive chế độ đầu ra">
+              <div class="guide-copy">
+                <div class="guide-number">05</div>
+                <span class="step-badge">Đầu ra</span>
+                <h3>Chọn đúng một trong ba chế độ</h3>
+                <div class="mode-guide-grid">
+                  <div><span>↓</span><b>Tải từng file</b><p>Dễ kiểm soát, phù hợp ít file hoặc khi bạn chỉ muốn tải một phần.</p></div>
+                  <div><span>◫</span><b>Nén ZIP</b><p>Gom nhiều file thành một gói duy nhất, tiện lưu trữ và chia sẻ.</p></div>
+                  <div><span>⇄</span><b>Drive → Drive</b><p>Không tải qua thiết bị; cần kết nối thêm Drive đích và chọn thư mục nhận.</p></div>
+                </div>
+                <ol class="guide-checklist compact-list">
+                  <li><span>1</span><div>Chọn thẻ chế độ trước khi dán link.</div></li>
+                  <li><span>2</span><div>Nếu chọn Drive đích, kết nối tài khoản nhận và nhập Folder ID hoặc nhấn tạo thư mục tự động.</div></li>
+                  <li><span>3</span><div>Đọc dòng gợi ý ngay dưới ba thẻ để kiểm tra lựa chọn cuối cùng.</div></li>
+                </ol>
+              </div>
+              <figure class="guide-visual"><img src="assets/guides/05-modes.svg" alt="Minh họa ba chế độ tải từng file, ZIP và Drive đích" loading="lazy" /><figcaption>Chế độ đang chọn có viền sáng và dấu xác nhận.</figcaption></figure>
+            </article>
+
+            <article class="guide-module reverse" id="guide-links" data-guide-keywords="dán link clipboard hợp lệ trùng lỗi tên kết quả ctrl enter">
+              <div class="guide-copy">
+                <div class="guide-number">06</div>
+                <span class="step-badge accent">Đầu vào</span>
+                <h3>Dán link và kiểm tra trước khi chạy</h3>
+                <ol class="guide-checklist">
+                  <li><span>1</span><div>Dán mỗi liên kết Drive trên <b>một dòng</b>, hoặc nhấn <b>Dán từ clipboard</b>.</div></li>
+                  <li><span>2</span><div>Quan sát bộ đếm: xanh = hợp lệ, vàng = trùng, đỏ = không đúng định dạng.</div></li>
+                  <li><span>3</span><div>Đặt <b>Tên kết quả</b> ngắn, dễ tìm; không cần thêm đuôi .zip.</div></li>
+                  <li><span>4</span><div>Nhấn <b>Bắt đầu xử lý</b> hoặc dùng phím tắt <b>Ctrl/⌘ + Enter</b>.</div></li>
+                </ol>
+                <div class="guide-tip warning"><b>Nếu có dòng đỏ:</b> Tool sẽ dừng để bạn sửa, tránh chạy nhầm URL ngoài Google Drive.</div>
+              </div>
+              <figure class="guide-visual"><img src="assets/guides/06-links.svg" alt="Minh họa ô dán link và bộ đếm link hợp lệ, trùng, lỗi" loading="lazy" /><figcaption>Luôn để bộ đếm đỏ về 0 trước khi bắt đầu.</figcaption></figure>
+            </article>
+
+            <article class="guide-module" id="guide-scan" data-guide-keywords="quét folder thư mục cây file chọn tất cả bỏ chọn">
+              <div class="guide-copy">
+                <div class="guide-number">07</div>
+                <span class="step-badge">Folder scanner</span>
+                <h3>Quét cả cây thư mục Drive</h3>
+                <p>Dùng chức năng này khi bạn có một link folder lớn và muốn xem toàn bộ file con trước khi tạo job.</p>
+                <ol class="guide-checklist">
+                  <li><span>1</span><div>Nhấn <b>Quét cả thư mục</b> bên phải tiêu đề ô nhập link.</div></li>
+                  <li><span>2</span><div>Dán link folder rồi nhấn <b>Quét ngay</b>; giữ cửa sổ mở trong lúc quét.</div></li>
+                  <li><span>3</span><div>Dùng ô chọn để giữ lại đúng file cần xử lý; thư mục chỉ dùng để hiển thị cấu trúc.</div></li>
+                  <li><span>4</span><div>Nhấn <b>Khởi chạy Job với các File đã chọn</b>.</div></li>
+                </ol>
+              </div>
+              <figure class="guide-visual"><img src="assets/guides/07-scan.svg" alt="Minh họa cửa sổ quét folder và cây file có ô chọn" loading="lazy" /><figcaption>Bỏ chọn file không cần thiết trước khi khởi chạy.</figcaption></figure>
+            </article>
+
+            <article class="guide-module reverse" id="guide-progress" data-guide-keywords="tiến trình phần trăm eta nhật ký hủy job kết quả tải file zip drive">
+              <div class="guide-copy">
+                <div class="guide-number">08</div>
+                <span class="step-badge accent">Theo dõi</span>
+                <h3>Đọc tiến trình và nhận kết quả</h3>
+                <ol class="guide-checklist">
+                  <li><span>1</span><div>Vòng phần trăm và bốn mốc cho biết job đang ở bước nào.</div></li>
+                  <li><span>2</span><div><b>Đã chạy</b> là thời gian thực tế; <b>Còn khoảng</b> chỉ là ước tính và sẽ tự cập nhật.</div></li>
+                  <li><span>3</span><div>Có thể rời trang khi job đang chạy; mở chuông thông báo hoặc Telegram để nhận tin hoàn tất.</div></li>
+                  <li><span>4</span><div>Khi đạt 100%, nhấn nút tải file/ZIP hoặc <b>Mở trên Drive</b> tùy chế độ.</div></li>
+                  <li><span>5</span><div>Nếu lỗi, mở <b>Nhật ký kỹ thuật</b>, sau đó dùng lại danh sách link để thử lại.</div></li>
+                </ol>
+              </div>
+              <figure class="guide-visual"><img src="assets/guides/08-progress.svg" alt="Minh họa vòng tiến trình, các mốc xử lý và nút nhận kết quả" loading="lazy" /><figcaption>Màu xanh = hoàn tất; màu vàng = đang xử lý; màu đỏ = cần kiểm tra.</figcaption></figure>
+            </article>
+
+            <article class="guide-module" id="guide-history" data-guide-keywords="lịch sử job tìm kiếm bộ lọc xem chi tiết dùng lại link retry">
+              <div class="guide-copy">
+                <div class="guide-number">09</div>
+                <span class="step-badge">Quản lý job</span>
+                <h3>Tìm lại kết quả và chạy lại job</h3>
+                <ol class="guide-checklist">
+                  <li><span>1</span><div>Mở <b>Lịch sử</b> để xem job mới nhất, chế độ đầu ra và số kết quả.</div></li>
+                  <li><span>2</span><div>Tìm theo tên hoặc lọc <b>Đang chạy / Hoàn tất / Có lỗi</b>.</div></li>
+                  <li><span>3</span><div>Nhấn <b>Mở kết quả</b> hoặc <b>Theo dõi</b> để quay về bảng tiến trình.</div></li>
+                  <li><span>4</span><div>Nhấn <b>Dùng lại link</b> để đưa danh sách cũ vào Workspace; tên kết quả tự thêm “_retry”.</div></li>
+                </ol>
+              </div>
+              <figure class="guide-visual"><img src="assets/guides/09-history.svg" alt="Minh họa trang lịch sử, bộ lọc và nút mở kết quả" loading="lazy" /><figcaption>Dùng bộ lọc để tìm job lỗi nhanh hơn.</figcaption></figure>
+            </article>
+
+            <article class="guide-module reverse" id="guide-notifications" data-guide-keywords="thông báo chuông trình duyệt telegram chat id giao diện sáng tối đổi mật khẩu đăng xuất">
+              <div class="guide-copy">
+                <div class="guide-number">10</div>
+                <span class="step-badge accent">Cài đặt</span>
+                <h3>Thông báo, Telegram và bảo mật</h3>
+                <ol class="guide-checklist">
+                  <li><span>1</span><div>Nhấn biểu tượng <b>chuông</b> để xem job, giao dịch và cảnh báo gói; chấm số là thông báo chưa đọc.</div></li>
+                  <li><span>2</span><div>Nhấn <b>Bật</b> để cho phép trình duyệt báo khi bạn đang ở tab khác.</div></li>
+                  <li><span>3</span><div>Nhấn biểu tượng <b>✦</b>, nhập Chat ID Telegram để nhận trạng thái từ bot.</div></li>
+                  <li><span>4</span><div>Dùng biểu tượng mặt trăng/mặt trời để đổi sáng tối; bánh răng để đổi mật khẩu; mũi tên để đăng xuất.</div></li>
+                </ol>
+                <div class="guide-tip"><b>Mẹo:</b> Nếu trình duyệt từng chặn thông báo, hãy mở biểu tượng ổ khóa cạnh địa chỉ web và cho phép lại.</div>
+              </div>
+              <figure class="guide-visual"><img src="assets/guides/10-notifications.svg" alt="Minh họa trung tâm thông báo, nút Telegram, đổi giao diện và đổi mật khẩu" loading="lazy" /><figcaption>Mọi cài đặt tài khoản nằm ở góc trên bên phải.</figcaption></figure>
+            </article>
+
+            <section class="guide-admin-section" id="guide-admin" hidden>
+              <div class="guide-category-head"><span>Quản trị</span><h3>Chức năng chỉ dành cho admin</h3></div>
+              <article class="guide-module" id="guide-admin-dashboard" data-guide-keywords="admin tổng quan tìm user người dùng dashboard">
+                <div class="guide-copy"><div class="guide-number">A1</div><span class="step-badge">Admin</span><h3>Tổng quan và tìm người dùng</h3><ol class="guide-checklist"><li><span>1</span><div>Mở mục <b>Admin</b> xuất hiện sau khi tài khoản có quyền.</div></li><li><span>2</span><div>Đọc các thẻ tổng quan về user, số dư, job và giao dịch chờ.</div></li><li><span>3</span><div>Tìm theo email, tên hoặc gói rồi nhấn <b>Quản lý</b>.</div></li></ol></div>
+                <figure class="guide-visual"><img src="assets/guides/11-admin-dashboard.svg" alt="Minh họa dashboard admin và ô tìm user" loading="lazy" /><figcaption>Bảng tổng quan giúp phát hiện giao dịch hoặc job cần xử lý.</figcaption></figure>
+              </article>
+              <article class="guide-module reverse" id="guide-admin-user" data-guide-keywords="admin số dư cấp gói mật khẩu khóa tài khoản quyền admin"><div class="guide-copy"><div class="guide-number">A2</div><span class="step-badge accent">Quản lý user</span><h3>Số dư, gói và bảo mật</h3><ol class="guide-checklist"><li><span>1</span><div>Đặt số dư chính xác hoặc cộng/trừ có chủ đích.</div></li><li><span>2</span><div>Chọn gói và ngày hết hạn; bỏ trống để dùng thời hạn mặc định.</div></li><li><span>3</span><div>Chỉ đổi mật khẩu hoặc khóa tài khoản sau khi xác minh đúng người dùng.</div></li><li><span>4</span><div>Quyền admin chỉ nên cấp cho tài khoản thật sự cần quản trị.</div></li></ol><div class="guide-tip danger"><b>Cẩn trọng:</b> Mọi thay đổi số dư và quyền đều có tác động ngay.</div></div><figure class="guide-visual"><img src="assets/guides/12-admin-user.svg" alt="Minh họa cửa sổ quản lý số dư, gói và bảo mật user" loading="lazy" /><figcaption>Kiểm tra email ở đầu cửa sổ trước khi lưu thay đổi.</figcaption></figure></article>
+              <article class="guide-module" id="guide-admin-ops" data-guide-keywords="admin duyệt nạp tiền từ chối job hoạt động"><div class="guide-copy"><div class="guide-number">A3</div><span class="step-badge">Vận hành</span><h3>Giao dịch và job gần đây</h3><ol class="guide-checklist"><li><span>1</span><div>Đối chiếu số tiền, mã nạp và người dùng trước khi duyệt thủ công.</div></li><li><span>2</span><div>Không duyệt lại giao dịch đã được webhook cộng tự động.</div></li><li><span>3</span><div>Dùng danh sách job gần đây để phát hiện lỗi lặp hoặc job bị treo.</div></li></ol></div><figure class="guide-visual"><img src="assets/guides/13-admin-ops.svg" alt="Minh họa danh sách giao dịch và job trong admin" loading="lazy" /><figcaption>Luôn đối chiếu giao dịch trước khi Duyệt hoặc Từ chối.</figcaption></figure></article>
+            </section>
+
+            <section class="guide-faq" data-guide-keywords="lỗi câu hỏi thường gặp hỗ trợ">
+              <div class="guide-category-head"><span>Xử lý nhanh</span><h3>Câu hỏi thường gặp</h3></div>
+              <details><summary>Đã kết nối nhưng tool vẫn báo “Chưa kết nối Drive”</summary><p>Nhấn <b>Đồng bộ</b> trong Workspace. Nếu chưa đổi, đăng xuất rồi đăng nhập lại và kết nối đúng tài khoản có quyền xem file.</p></details>
+              <details><summary>Đã chuyển khoản nhưng số dư chưa tăng</summary><p>Kiểm tra nội dung chuyển khoản có đúng mã nạp hay không, chờ ngân hàng ghi nhận rồi tải lại trang. Nếu vẫn thiếu, gửi ảnh giao dịch và mã nạp cho admin.</p></details>
+              <details><summary>Trình duyệt chỉ tải một file rồi dừng</summary><p>Cho phép website tải nhiều file trong cài đặt trình duyệt, sau đó mở lại kết quả từ Lịch sử và nhấn tải lần nữa.</p></details>
+              <details><summary>Job báo lỗi hoặc không tìm thấy file</summary><p>Kiểm tra tài khoản Drive nguồn còn quyền xem, link chưa bị xóa và không thuộc tài khoản khác. Mở Nhật ký kỹ thuật để lấy thông tin trước khi liên hệ.</p></details>
+            </section>
+
+            <div class="guide-support-card">
+              <div><span class="panel-kicker">Vẫn chưa xử lý được?</span><h3>Gửi ảnh màn hình và mã job cho admin.</h3><p>Mô tả bạn đang ở bước nào, link là file hay folder và thông báo lỗi hiển thị trên màn hình.</p></div>
+              <a class="btn primary" href="https://www.facebook.com/profile.php?id=61591666597463" target="_blank" rel="noopener noreferrer">Nhắn admin qua Facebook <span>↗</span></a>
+            </div>
+
+            <div class="guide-empty" id="guideEmpty" hidden><span>⌕</span><h3>Chưa tìm thấy hướng dẫn phù hợp</h3><p>Thử từ khóa ngắn hơn như “ZIP”, “nạp tiền” hoặc “Drive”.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-tool" class="page">
+        <div class="page-head row">
+          <div>
+            <p class="eyebrow">Workspace</p>
+            <h2>Tạo phiên xử lý mới</h2>
+            <p id="accessText" class="hint">Đăng nhập để kiểm tra quyền.</p>
+          </div>
+          <button class="btn ghost" id="refreshBtn">↻ Đồng bộ</button>
+        </div>
+
+        <div class="readiness-board" id="readinessBoard" aria-label="Mức độ sẵn sàng của workspace">
+          <div class="readiness-score" id="readinessScore" style="--ready:0%">
+            <div><strong id="readinessPct">0%</strong><span>Sẵn sàng</span></div>
+          </div>
+          <div class="readiness-items">
+            <button class="readiness-item" id="readyAccount" type="button" data-ready-action="login"><span class="readiness-icon" data-step="1">1</span><div><b>Đăng nhập</b><small>Chưa xác minh</small></div><i>→</i></button>
+            <button class="readiness-item" id="readyPlan" type="button" data-ready-action="plans"><span class="readiness-icon" data-step="2">2</span><div><b>Gói sử dụng</b><small>Chưa kích hoạt</small></div><i>→</i></button>
+            <button class="readiness-item" id="readyDrive" type="button" data-ready-action="drive"><span class="readiness-icon" data-step="3">3</span><div><b>Drive nguồn</b><small>Chưa kết nối</small></div><i>→</i></button>
+          </div>
+          <div class="readiness-message"><span class="panel-kicker">Kiểm tra nhanh</span><b id="readinessTitle">Còn 3 bước để bắt đầu</b><small id="readinessHint">Hoàn tất theo thứ tự để tránh lỗi khi tạo job.</small></div>
+        </div>
+
+        <!-- FREE USAGE ALERT BANNER -->
+        <div id="freeUsageAlertBanner" class="panel alert-panel" style="margin-bottom: 20px; display: none; background: rgba(0, 184, 148, 0.1); border: 1px solid rgba(0, 184, 148, 0.3); padding: 15px; border-radius: 12px; display: flex; align-items: center; gap: 15px;">
+          <div style="font-size: 24px;">🎁</div>
+          <div>
+            <h4 style="margin: 0; color: #00b894; font-weight: 600;">Bạn được tặng lượt sử dụng miễn phí!</h4>
+            <p style="margin: 5px 0 0 0; font-size: 14px; color: var(--muted);" id="freeUsageBannerText">Bạn còn 0 lượt miễn phí. Chế độ miễn phí chỉ áp dụng cho "Tải từng file".</p>
+          </div>
+        </div>
+
+        <!-- MODE SELECTOR -->
+        <div class="mode-selector" id="modeSelectorWrap">
+          <button class="mode-btn active" id="modeClientBtn" data-mode="zip">
+            <span class="mode-icon">↓</span>
+            <div>
+              <b>Tải từng file</b>
+              <small>Chủ động tải sau khi xử lý</small>
+            </div>
+          </button>
+          <button class="mode-btn" id="modeServerZipBtn" data-mode="server_zip">
+            <span class="mode-icon">◫</span>
+            <div>
+              <b>Nén ZIP siêu tốc</b>
+              <small>Server gom file thành 1 cục ZIP</small>
+            </div>
+          </button>
+          <button class="mode-btn" id="modeUpDriveBtn" data-mode="drive">
+            <span class="mode-icon">⇄</span>
+            <div>
+              <b>Đẩy lên Drive đích</b>
+              <small>Copy trực tiếp Google→Google</small>
+            </div>
+          </button>
+        </div>
+        <input type="hidden" id="selectedOutputMode" value="zip" />
+        <div class="mode-guidance" id="modeGuidance" aria-live="polite">
+          <span class="mode-guidance-icon">↓</span>
+          <div><b>Tải từng file</b><p>Phù hợp khi bạn muốn chọn và kiểm soát từng file tải về thiết bị.</p></div>
+          <button class="text-btn nav-link" data-page="guide" data-guide-target="guide-modes" type="button">Xem hướng dẫn</button>
+        </div>
+
+        <!-- GLOBAL OAUTH PANEL -->
+        <article class="panel auth-panel">
+          <div class="panel-header">
+            <div class="panel-title-icon">G</div><div><span class="panel-kicker">Bước 1</span><h3>Kết nối Drive nguồn</h3></div>
+          </div>
+          <p class="hint panel-description">Tài khoản này cần có quyền xem các file hoặc thư mục trong danh sách. Chỉ cần kết nối một lần bằng Google OAuth.</p>
+          <div class="drive-line connection-card">
+            <div><span class="connection-label">Tài khoản nguồn</span><p id="sourceStatus">Chưa kết nối</p></div>
+            <a class="btn primary small" href="/api/auth/google/connect/source">Kết nối Google</a>
+          </div>
+        </article>
+
+        <!-- PANEL UPDRIVE (chỉ hiện khi chọn UpDrive) -->
+        <article class="panel updrive-panel" id="upDrivePanel" style="display:none">
+          <div class="panel-header"><div class="panel-title-icon">⇄</div><div><span class="panel-kicker">Drive đích</span><h3>Cấu hình chuyển Drive</h3></div></div>
+          <p class="hint panel-description">Chọn tài khoản và thư mục sẽ nhận file. Hệ thống ưu tiên giữ lại cấu trúc thư mục nguồn.</p>
+          <div class="drive-line">
+            <div><b>2. Drive đích (Dùng để LƯU File)</b><p id="destStatus">Chưa kết nối</p></div>
+            <a class="btn small" href="/api/auth/google/connect/destination">Kết nối</a>
+          </div>
+          <label>Folder ID Drive đích <small class="hint">(bỏ trống = root)</small></label>
+          <div class="inline-control">
+            <input id="targetFolderId" placeholder="Folder ID đích (tùy chọn)" />
+            <button class="btn small ghost" id="createDestFolderBtn">Tạo thư mục AutoTool Results</button>
+          </div>
+        </article>
+
+
+
+        <article class="panel tool-box">
+          <div class="row tool-box-head">
+            <div><span class="panel-kicker">Bước 2</span><h3>Thêm liên kết Google Drive</h3></div>
+            <button class="btn small ghost" id="openScanModalBtn">Quét cả thư mục</button>
+          </div>
+          <p class="hint">Mỗi dòng một liên kết. Hệ thống tự loại bỏ dòng trống và phát hiện liên kết bị trùng.</p>
+          <textarea id="linksInput" placeholder="https://drive.google.com/file/d/...&#10;https://drive.google.com/file/d/..."></textarea>
+          <div class="link-input-footer">
+            <div id="linkInputStatus" class="link-input-status" aria-live="polite"><span>0 liên kết hợp lệ</span></div>
+            <div class="actions compact-actions">
+              <button class="btn ghost small" id="pasteLinksBtn" type="button">Dán từ clipboard</button>
+              <button class="btn ghost small" id="clearBtn" type="button">Xóa</button>
+            </div>
+          </div>
+          <div class="job-submit-row">
+            <label class="result-name-field"><span>Tên kết quả</span><input id="resultName" value="ket_qua" maxlength="120" placeholder="Ví dụ: khoa_hoc_thang_7" /></label>
+            <button class="btn primary start-job-btn" id="startJobBtn">Bắt đầu xử lý <span>→</span></button>
+          </div>
+        </article>
+
+        <!-- MODAL QUÉT FOLDER -->
+        <div id="scanFolderModal" class="modal" hidden>
+          <div class="modal-content panel" style="max-width:700px">
+            <div class="modal-header">
+              <h3>📂 Quét Cây Thư Mục Drive</h3>
+              <button class="btn ghost small" onclick="$('#scanFolderModal').hidden = true">✕</button>
+            </div>
+            <div style="margin-top:16px">
+              <label>Link Thư Mục (Folder Link)</label>
+              <div style="display:flex; gap:10px">
+                <input type="text" id="scanFolderInput" placeholder="https://drive.google.com/drive/folders/..." style="flex:1" />
+                <button class="btn primary" id="doScanFolderBtn">Quét ngay</button>
+              </div>
+              <p class="hint" style="margin-top:8px">Yêu cầu: Bạn đã kết nối Drive Nguồn (trong mục Cài Đặt) và Drive Nguồn có quyền truy cập thư mục này.</p>
+            </div>
+            
+            <div id="scanFolderResult" style="margin-top:20px; display:none">
+              <div class="row">
+                <b style="color:var(--brand2)">Cây thư mục & File</b>
+                <div>
+                  <button class="btn small ghost" id="scanSelectAllBtn">Chọn tất cả</button>
+                  <button class="btn small ghost" id="scanDeselectAllBtn">Bỏ chọn</button>
+                </div>
+              </div>
+              <div class="tree-container" id="folderTreeView">
+                <!-- Tree items will be appended here -->
+              </div>
+              <div style="margin-top:20px; text-align:right">
+                <button class="btn primary" id="addSelectedScannedBtn">🚀 Khởi chạy Job với các File đã chọn</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <article class="panel result-panel">
+          <div class="result-overview">
+            <div class="progress-ring" id="progressRing" style="--progress:0%"><div><strong id="jobPct">0%</strong><span>Tiến độ</span></div></div>
+            <div class="result-summary">
+              <span class="panel-kicker">Tiến trình trực tiếp</span>
+              <h3>Job hiện tại</h3>
+              <p id="jobStage">Chưa có job nào đang chạy</p>
+              <div id="progressMeta" class="progress-meta" style="display:none">
+                <span id="progressElapsed">Đã chạy: --</span>
+                <span id="progressETA">Còn khoảng: --</span>
+              </div>
+            </div>
+            <div class="job-live-state" id="jobLiveState"><span></span><b>Chờ job mới</b><small>Cập nhật tự động</small></div>
+          </div>
+          <div class="job-stage-track" id="jobStageTrack" aria-label="Các bước xử lý">
+            <div data-stage-step="received"><span>1</span><b>Đã nhận</b><small>Kiểm tra đầu vào</small></div>
+            <i></i><div data-stage-step="resolving"><span>2</span><b>Bóc link</b><small>Xác thực nguồn</small></div>
+            <i></i><div data-stage-step="preparing"><span>3</span><b>Chuẩn bị</b><small>Tạo đầu ra</small></div>
+            <i></i><div data-stage-step="ready"><span>4</span><b>Sẵn sàng</b><small>Nhận kết quả</small></div>
+          </div>
+          <div class="progress"><div id="jobBar"></div></div>
+          <div id="resultActions" class="actions"></div>
+          <details class="log-details"><summary>Nhật ký kỹ thuật <span>mở rộng</span></summary><pre id="logBox" class="log">Nhật ký sẽ xuất hiện khi job bắt đầu...</pre></details>
+        </article>
+      </section>
+
+      <section id="page-jobs" class="page">
+        <div class="page-head row"><div><p class="eyebrow">Lịch sử</p><h2>Các job gần đây</h2><p class="hint">Tìm lại kết quả, theo dõi job đang chạy hoặc dùng lại danh sách liên kết.</p></div><button class="btn ghost" id="reloadJobsBtn">↻ Tải lại</button></div>
+        <div class="jobs-toolbar"><input id="jobsSearch" type="search" placeholder="Tìm theo tên, trạng thái..." /><div class="job-filters" id="jobFilters"><button class="active" data-status="all">Tất cả</button><button data-status="running">Đang chạy</button><button data-status="completed">Hoàn tất</button><button data-status="error">Có lỗi</button></div></div>
+        <div id="jobsList" class="list"></div>
+      </section>
+
+      <section id="page-plans" class="page">
+        <div class="page-head row">
+          <div>
+            <h2>Chọn gói phù hợp với bạn</h2>
+            <p class="hint">Mỗi gói đều mở toàn bộ tính năng; chỉ khác nhau ở thời hạn sử dụng.</p>
+          </div>
+          <div class="balance-pill">Số dư: <b id="balanceText">0đ</b></div>
+        </div>
+        <div id="plansGrid" class="plans"></div>
+      </section>
+
+      <section id="page-topup" class="page">
+        <div class="page-head"><p class="eyebrow">Nạp tiền</p><h2>Nạp tiền bằng QR tự động</h2></div>
+        <div class="grid-2 topup-layout">
+                    <article class="panel">
+            <h3>Thông tin nạp tự động</h3>
+            <p class="hint">Dùng app ngân hàng quét mã QR bên phải. Hệ thống sẽ tự cộng số dư trong vòng 5 giây.<br/><b>Bạn có thể chuyển số tiền tuỳ ý, hệ thống sẽ nhận chính xác số tiền bạn chuyển.</b></p>
+                          <div style="margin-top: 20px;">
+                <label>Chọn số tiền nạp</label>
+                <div class="row" style="gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+                  <button type="button" class="btn small ghost amount-preset" data-amount="20000">20k</button>
+                  <button type="button" class="btn small ghost amount-preset" data-amount="50000">50k</button>
+                  <button type="button" class="btn small ghost amount-preset" data-amount="100000">100k</button>
+                  <button type="button" class="btn small ghost amount-preset" data-amount="200000">200k</button>
+                  <button type="button" class="btn small ghost amount-preset" data-amount="500000">500k</button>
+                </div>
+                <input id="topupAmount" type="number" min="1000" step="1000" placeholder="Hoặc tự nhập số tiền..." style="margin-bottom: 15px;" />
+
+                <label>Mã nạp của bạn (Bắt buộc phải có trong nội dung)</label>
+                <input id="topupNote" readonly style="font-weight:bold; font-size: 18px; color: var(--brand1)" value="Đang tải..." />
+                <p class="hint">Quét mã QR sẽ tự động điền mã này. Hãy kiểm tra lại phần Nội dung chuyển khoản trên App ngân hàng để đảm bảo mã nạp chính xác.</p>
+              </div>
+          </article>
+
+          <article class="panel qr-panel">
+            <div class="row"><div><h3>QR chuyển khoản</h3><p id="paymentHint" class="hint">Đang tải thông tin thanh toán...</p></div></div>
+            <div id="qrWrap" class="qr-wrap"><div class="qr-placeholder">Chưa cấu hình QR</div></div>
+            <div class="payment-public-info">
+              <div><span>Số tiền</span><b id="payAmount">Tuỳ chọn</b></div>
+              <div><span>Mã nạp</span><b id="payNote">-</b><button class="btn small ghost copy-pay" data-copy="payNote">Copy</button></div>
+            </div>
+          </article>
+        </div>
+        <article class="panel"><h3>Lịch sử nạp</h3><div id="paymentsList" class="list compact"></div></article>
+      </section>
+
+      <section id="page-admin" class="page admin-page">
+        <div class="page-head row">
+          <div>
+            <p class="eyebrow">God Admin</p>
+            <h2>Trung tâm điều khiển</h2>
+            <p class="hint">Owner có thể xem toàn bộ user, sửa số dư chính xác, cấp gói, đổi mật khẩu và bật/tắt admin.</p>
+          </div>
+          <button class="btn ghost" id="reloadAdminBtn">Tải lại</button>
+        </div>
+        <div id="adminOverview" class="admin-stats"></div>
+
+        <article class="panel admin-panel">
+          <div class="row admin-toolbar">
+            <div>
+              <h3>Người dùng</h3>
+              <p class="hint">Bấm “Quản lý” để chỉnh số tiền tùy ý, cấp/gỡ gói, đổi mật khẩu hoặc khóa tài khoản.</p>
+            </div>
+            <input id="adminUserSearch" class="admin-search" placeholder="Tìm theo email, tên, gói..." />
+          </div>
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>User</th><th>Quyền</th><th>Số tiền</th><th>Hoạt động</th><th>Thao tác</th></tr></thead>
+              <tbody id="adminUsersBody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <div class="grid-2 admin-lower">
+          <article class="panel"><div class="row"><h3>Nạp tiền</h3><button class="btn small ghost" id="reloadAdminPaymentsBtn">Tải lại</button></div><div id="adminPayments" class="list compact"></div></article>
+          <article class="panel"><div class="row"><h3>Job gần đây</h3><button class="btn small ghost" id="reloadAdminJobsBtn">Tải lại</button></div><div id="adminJobs" class="list compact"></div></article>
+        </div>
+      </section>
+    </main>
+
+    <div id="authModal" class="modal" hidden>
+      <div class="modal-content panel">
+        <div class="modal-header"><h3 id="authTitle">Đăng nhập</h3><button class="btn ghost small close-auth" id="closeAuthBtn">✕</button></div>
+        <div class="auth-forms">
+          <form id="loginForm">
+            <label>Tài khoản hoặc Email</label><input type="text" id="loginEmail" autocomplete="username" required />
+            <label>Mật khẩu</label><input type="password" id="loginPass" autocomplete="current-password" required />
+            <button type="submit" class="btn primary w-full mt-3">Đăng nhập</button>
+            <p class="hint text-center mt-3"><a href="#" id="showForgotPass">Quên mật khẩu?</a> | <a href="#" id="showRegister">Đăng ký mới</a></p>
+          </form>
+          <form id="registerForm" hidden>
+            <label>Tên hiển thị</label><input type="text" id="regName" autocomplete="name" />
+            <label>Email</label><input type="email" id="regEmail" autocomplete="email" required />
+            <label>Mật khẩu</label><input type="password" id="regPass" autocomplete="new-password" required minlength="6" />
+            <button type="submit" class="btn primary w-full mt-3">Tạo tài khoản</button>
+            <p class="hint text-center mt-3">Đã có tài khoản? <a href="#" id="showLogin">Đăng nhập</a></p>
+          </form>
+          <div id="forgotPassForm" hidden class="text-center py-4">
+            <p>Vui lòng liên hệ Quản trị viên (hoặc Fanpage) để đặt lại mật khẩu.</p>
+            <p class="mt-2 text-sm text-gray-500">Nếu bạn đã liên kết tài khoản Google, hãy sử dụng nút đăng nhập Google bên dưới.</p>
+            <button class="btn ghost mt-3 w-full" id="backToLogin">Quay lại Đăng nhập</button>
+          </div>
+        </div>
+        <div class="divider"><span>HOẶC</span></div>
+        <a class="btn w-full google-btn" href="/api/auth/google/login">Tiếp tục với Google</a>
+        <p class="hint text-center mt-3">Tài khoản Google cùng email sẽ gộp vào đúng một user.</p>
+      </div>
+    </div>
+
+    <div id="changePassModal" class="modal" hidden>
+      <div class="modal-content panel">
+        <div class="modal-header"><h3>Đổi mật khẩu của tôi</h3><button class="btn ghost small close-auth" id="closeChangePassBtn">✕</button></div>
+        <form id="changePassForm">
+          <label>Mật khẩu cũ</label><input type="password" id="oldPass" autocomplete="current-password" required />
+          <label>Mật khẩu mới</label><input type="password" id="newPass" autocomplete="new-password" required minlength="6" />
+          <label>Nhập lại mật khẩu mới</label><input type="password" id="newPass2" autocomplete="new-password" required minlength="6" />
+          <button type="submit" class="btn primary w-full mt-3">Lưu mật khẩu mới</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="adminUserModal" class="modal" hidden>
+      <div class="modal-content panel admin-edit-modal">
+        <div class="modal-header">
+          <div><h3>Quản lý user</h3><p id="adminEditSub" class="hint">-</p></div>
+          <button class="btn ghost small close-auth" id="closeAdminUserBtn">✕</button>
+        </div>
+        <input type="hidden" id="adminEditUserId" />
+
+        <div class="admin-edit-summary">
+          <div><span>Email</span><b id="adminEditEmail">-</b></div>
+          <div><span>Số dư hiện tại</span><b id="adminEditBalanceNow">0đ</b></div>
+          <div><span>Lượt miễn phí</span><b id="adminEditFreeUsagesNow">0</b></div>
+          <div><span>Gói hiện tại</span><b id="adminEditPlanNow">none</b></div>
+        </div>
+
+        <div class="edit-section">
+          <h4>Sửa số tiền</h4>
+          <label>Đặt số dư chính xác</label>
+          <div class="inline-control"><input id="adminEditBalanceExact" type="number" min="0" step="1000" /><button class="btn primary" id="adminSetBalanceBtn">Đặt số dư</button></div>
+          <label>Cộng/trừ nhanh</label>
+          <div class="inline-control"><input id="adminEditBalanceDelta" type="number" step="1000" placeholder="Ví dụ: 50000 hoặc -50000" /><button class="btn" id="adminDeltaBalanceBtn">Cộng / trừ</button></div>
+        </div>
+
+        <div class="edit-section" id="adminFreeUsageSection">
+          <h4>Tặng lượt miễn phí</h4>
+          <label>Nhập số lượt</label>
+          <div class="inline-control"><input id="adminEditFreeUsageExact" type="number" min="0" step="1" placeholder="Số lượt mới (VD: 5)" /><button class="btn primary" id="adminSetFreeUsageBtn">Đặt lượt</button></div>
+          <label>Lý do cấp/trừ lượt (Bắt buộc)</label>
+          <input id="adminEditFreeUsageReason" type="text" placeholder="Ghi chú cấp lượt miễn phí..." />
+        </div>
+
+        <div class="edit-section">
+          <h4>Cấp gói</h4>
+          <label>Chọn gói</label>
+          <select id="adminEditPlanSelect"></select>
+          <label>Ngày hết hạn tùy chỉnh</label>
+          <input id="adminEditExpiresAt" type="datetime-local" />
+          <p class="hint">Bỏ trống ngày hết hạn để hệ thống tự cộng theo thời hạn gói. Gói vĩnh viễn không cần ngày hết hạn.</p>
+          <div class="actions"><button class="btn primary" id="adminSetPlanBtn">Cấp gói</button><button class="btn ghost" id="adminClearPlanBtn">Gỡ gói</button></div>
+        </div>
+
+        <div class="edit-section">
+          <h4>Bảo mật & quyền</h4>
+          <label>Mật khẩu mới cho user</label>
+          <div class="inline-control"><input id="adminEditNewPassword" type="text" minlength="6" placeholder="Nhập mật khẩu mới" /><button class="btn" id="adminResetPassBtn">Đổi mật khẩu</button></div>
+          <div class="actions mt-3"><button class="btn danger" id="adminToggleActiveBtn">Khóa / mở tài khoản</button><button class="btn ghost" id="adminToggleAdminBtn">Bật / tắt admin</button></div>
+          <p class="hint">Chỉ owner chính được bật/tắt quyền admin. Không thể khóa hoặc gỡ quyền owner chính.</p>
+        </div>
+      </div>
+    </div>
+
+    <a class="admin-contact" id="adminContact" href="https://www.facebook.com/profile.php?id=61591666597463" target="_blank" rel="noopener noreferrer" aria-label="Nhắn tin cho admin AutoTool Pro qua Facebook">
+      <span class="admin-contact-avatar">A<span></span></span>
+      <span class="admin-contact-copy"><b>Cần hỗ trợ?</b><small>Admin thường phản hồi sớm</small></span>
+      <span class="admin-contact-arrow">↗</span>
+    </a>
+    <div id="toast" class="toast" hidden aria-live="polite" aria-atomic="false"></div>
+    <script src="assets/app.js?v=premium-navy-v15tz"></script>
+  </body>
+</html>
