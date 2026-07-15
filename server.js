@@ -277,6 +277,42 @@ app.get('/api/plans', (req, res) => {
 // API ENDPOINTS - GOOGLE OAUTH
 // ================================================================
 
+// 6b. [MỚI] GET /api/auth/google/login - Initiate Google Login
+app.get('/api/auth/google/login', (req, res) => {
+  const redirect_back = req.query.redirect_back || req.headers.referer || '/';
+
+  const hasClientId = process.env.GOOGLE_CLIENT_ID && 
+                       process.env.GOOGLE_CLIENT_ID !== 'your_google_client_id.apps.googleusercontent.com' &&
+                       !process.env.GOOGLE_CLIENT_ID.startsWith('your_');
+                       
+  if (!hasClientId) {
+    console.log("[Google Login] GOOGLE_CLIENT_ID not configured. Fallback to Mock login.");
+    const mockEmail = 'demo_user@gmail.com';
+    const redirectUrl = `${redirect_back}#google-logged-in?email=${mockEmail}&name=DemoUser`;
+    return res.redirect(redirectUrl);
+  }
+  
+  // Encode type 'login' in state
+  const state = Buffer.from(JSON.stringify({
+    type: 'login',
+    redirect_back
+  })).toString('base64');
+  
+  const oauth2Client = getOAuth2Client();
+  const scopes = [
+    'https://www.googleapis.com/auth/userinfo.email',
+    'openid'
+  ];
+  
+  const url = oauth2Client.generateAuthUrl({
+    access_type: 'online',
+    scope: scopes,
+    state: state
+  });
+  
+  res.redirect(url);
+});
+
 // 7. GET /api/auth/google/connect/:type - Initiate OAuth connection
 app.get('/api/auth/google/connect/:type', (req, res) => {
   const { type } = req.params;
@@ -365,6 +401,27 @@ app.get('/api/auth/google/callback', async (req, res) => {
     const userInfo = await oauth2.userinfo.get();
     const googleEmail = userInfo.data.email || 'unknown@gmail.com';
     
+    if (type === 'login') {
+      // Handle Google Login: find or register user in db.json
+      const db = readDB();
+      let user = db.users.find(u => u.email.toLowerCase() === googleEmail.toLowerCase());
+      if (!user) {
+        // Automatically register Google user
+        user = {
+          email: googleEmail.toLowerCase(),
+          name: googleEmail.split('@')[0],
+          is_admin: googleEmail.toLowerCase() === 'admin',
+          connections: { source: null, destination: null }
+        };
+        db.users.push(user);
+        writeDB(db);
+      }
+      
+      req.session.email = user.email;
+      const redirectUrl = `${redirect_back}#google-logged-in?email=${user.email}&name=${encodeURIComponent(user.name || '')}`;
+      return res.redirect(redirectUrl);
+    }
+
     const tokenObject = {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,

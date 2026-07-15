@@ -1948,6 +1948,10 @@ function updateConnectLinks() {
   if (destBtn) {
     destBtn.href = `${activeBaseUrl}/api/auth/google/connect/destination?email=${email}&redirect_back=${encodeURIComponent(redirectBack)}`;
   }
+  const googleLoginBtn = document.querySelector('a[href*="/api/auth/google/login"]');
+  if (googleLoginBtn) {
+    googleLoginBtn.href = `${activeBaseUrl}/api/auth/google/login?redirect_back=${encodeURIComponent(redirectBack)}`;
+  }
 }
 
 function checkOAuthCallbackHash() {
@@ -1966,6 +1970,24 @@ function checkOAuthCallbackHash() {
     } catch (e) {
       console.error('Error parsing OAuth tokens from hash:', e);
       toast('Lỗi lưu kết nối Google Drive', 'error');
+    }
+    window.location.hash = '#tool';
+  } else if (hash && hash.includes('google-logged-in')) {
+    try {
+      const queryPart = hash.split('?')[1] || '';
+      const params = new URLSearchParams(queryPart);
+      const email = params.get('email');
+      if (email) {
+        localStorage.setItem('auth_email', email);
+        toast('Đăng nhập bằng Google thành công!', 'success');
+        setTimeout(() => {
+          window.location.hash = '#tool';
+          window.location.reload();
+        }, 1000);
+        return;
+      }
+    } catch (e) {
+      console.error('Error parsing Google Login from hash:', e);
     }
     window.location.hash = '#tool';
   }
